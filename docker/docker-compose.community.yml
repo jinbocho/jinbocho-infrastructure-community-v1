@@ -1,0 +1,108 @@
+# Community edition — pulls pre-built backend images from GHCR (no source
+# checkout, no --build). AI module not included — see docker-compose.pro.yml
+# (commercial) for that.
+#
+#   docker compose -f docker-compose.community.yml up -d
+#
+# To build from local source checkouts instead, use
+# docker-compose.community.local.yml.
+#
+# `name:` and the volume `name:` overrides below are pinned so Postgres data
+# survives regardless of project-directory path/name, and is shared with
+# docker-compose.all.yml / docker-compose.pro.yml if you switch deployment
+# topology on the same host — Compose-managed volume names are otherwise
+# derived from the project name, which silently changes data volumes if the
+# checkout path or invocation context ever changes.
+name: jinbocho
+
+services:
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: jinbocho-postgres-auth
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+      - ../init-sql/auth:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jinbocho-network
+
+  postgres-catalog:
+    image: postgres:16-alpine
+    container_name: jinbocho-postgres-catalog
+    environment:
+      POSTGRES_DB: catalog_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_catalog_data:/var/lib/postgresql/data
+      - ../init-sql/catalog:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jinbocho-network
+
+  auth-service:
+    image: ghcr.io/jinbocho/jinbocho-auth-v1:${JINBOCHO_VERSION:-latest}
+    container_name: jinbocho-auth
+    env_file:
+      - ../envs/auth-service.env   # copy from auth-service.env.example and fill in values
+    ports:
+      # localhost-only: internal service, public access goes via the gateway (:8000)
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    networks:
+      - jinbocho-network
+
+  catalog-service:
+    image: ghcr.io/jinbocho/jinbocho-catalog-v1:${JINBOCHO_VERSION:-latest}
+    container_name: jinbocho-catalog
+    env_file:
+      - ../envs/catalog-service.env   # copy from catalog-service.env.example and fill in values
+    ports:
+      # localhost-only: internal service, public access goes via the gateway (:8000)
+      - "127.0.0.1:8002:8002"
+    depends_on:
+      postgres-catalog:
+        condition: service_healthy
+    networks:
+      - jinbocho-network
+
+  api-gateway:
+    image: ghcr.io/jinbocho/jinbocho-api-gateway-v1:${JINBOCHO_VERSION:-latest}
+    container_name: jinbocho-api-gateway
+    env_file:
+      - ../envs/api-gateway.env   # copy from api-gateway.env.example and fill in values
+    ports:
+      - "8000:8000"
+    depends_on:
+      - auth-service
+      - catalog-service
+    networks:
+      - jinbocho-network
+
+networks:
+  jinbocho-network:
+    driver: bridge
+
+volumes:
+  postgres_auth_data:
+    name: jinbocho_postgres_auth_data
+  postgres_catalog_data:
+    name: jinbocho_postgres_catalog_data

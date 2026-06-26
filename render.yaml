@@ -1,0 +1,143 @@
+# Jinbocho — Render Blueprint (Infrastructure as Code), Community edition
+# ---------------------------------------------------------------------------
+# Deploy: Render Dashboard → New + → Blueprint → punta a questo repo.
+# Render legge questo file e crea/aggiorna tutti i servizi insieme.
+#
+# IMPORTANT — leggi prima di deployare:
+#  1) SEGRETI: tutte le env con `sync: false` NON sono nel file (niente segreti
+#     in git). Render te le chiede al primo deploy. Valori pronti nella chat /
+#     in RENDER_DEPLOYMENT.md §5. In particolare:
+#       - JWT_SECRET_KEY  → lo stesso valore per tutti (è nel gruppo condiviso)
+#       - DATABASE_URL    → URL Neon adattato (...?ssl=require) per auth e catalog
+#       - GOOGLE_BOOKS_API_KEY, CORS_ORIGINS, VITE_API_BASE_URL
+#  2) REPO: sostituisci `CHANGEME` con il tuo org/utente GitHub in ogni `repo:`.
+#  3) SICUREZZA vs FREE TIER: auth e catalog sono `type: pserv` (Private Service),
+#     NON esposti su internet — solo il gateway è pubblico (difesa in profondità,
+#     vedi pentest). I Private Services richiedono un piano a pagamento (~$7/mo cad).
+#     Se vuoi restare gratis a scapito della sicurezza: cambia auth+catalog in
+#     `type: web` (pubblici) — restano protetti dal JWT, ma con superficie esposta.
+#  4) URL CIRCOLARE (FE ↔ gateway): al PRIMO deploy non conosci ancora gli URL
+#     pubblici. Dopo il deploy: copia l'URL del gateway in VITE_API_BASE_URL (FE)
+#     e l'URL del FE in CORS_ORIGINS (gateway), poi redeploy di quei due servizi.
+# ---------------------------------------------------------------------------
+
+envVarGroups:
+  # Condiviso da auth, catalog e gateway: garantisce lo STESSO JWT secret ovunque.
+  - name: jinbocho-jwt
+    envVars:
+      - key: JWT_SECRET_KEY
+        sync: false            # inseriscilo una volta: vale per tutti i servizi del gruppo
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_ISSUER
+        value: jinbocho-auth
+      - key: JWT_AUDIENCE
+        value: jinbocho
+
+services:
+  # ---------------------------------------------------------------- AUTH
+  # pserv = Private Service: reachable only inside Render's network (not on the
+  # public internet). Defense in depth — only the gateway is public.
+  - type: pserv
+    name: jinbocho-auth
+    runtime: docker
+    repo: https://github.com/CHANGEME/jinbocho-auth-v1
+    branch: main
+    region: frankfurt          # UNA sola region per tutti i servizi
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: jinbocho-jwt
+      - key: PORT
+        value: "8001"          # porta interna fissa → indirizzo http://jinbocho-auth:8001
+      - key: DEBUG
+        value: "false"
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "30"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "30"
+      - key: DATABASE_URL
+        sync: false            # postgresql+asyncpg://...neon.tech/auth_db?ssl=require
+      - key: PASSWORD_RESET_EXPIRE_MINUTES
+        value: "15"
+      - key: FRONTEND_BASE_URL
+        sync: false            # https://<il-tuo-fe>.onrender.com — imposta dopo il deploy del FE
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false            # tuamail@gmail.com
+      - key: SMTP_PASSWORD
+        sync: false            # App Password Google a 16 caratteri
+      - key: EMAIL_FROM
+        sync: false            # tuamail@gmail.com
+
+  # ---------------------------------------------------------------- CATALOG
+  # pserv = Private Service: not exposed to the public internet (see AUTH note).
+  - type: pserv
+    name: jinbocho-catalog
+    runtime: docker
+    repo: https://github.com/CHANGEME/jinbocho-catalog-v1
+    branch: main
+    region: frankfurt
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: jinbocho-jwt
+      - key: PORT
+        value: "8002"
+      - key: DEBUG
+        value: "false"
+      - key: AUTH_SERVICE_URL
+        value: http://jinbocho-auth:8001    # indirizzo interno del servizio auth
+      - key: DATABASE_URL
+        sync: false            # postgresql+asyncpg://...neon.tech/catalog_db?ssl=require
+      - key: GOOGLE_BOOKS_API_KEY
+        sync: false
+
+  # ---------------------------------------------------------------- API GATEWAY (pubblico)
+  - type: web
+    name: jinbocho-api-gateway
+    runtime: docker
+    repo: https://github.com/CHANGEME/jinbocho-api-gateway-v1
+    branch: main
+    region: frankfurt
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: jinbocho-jwt
+      - key: DEBUG
+        value: "false"
+      - key: AUTH_SERVICE_URL
+        value: http://jinbocho-auth:8001
+      - key: CATALOG_SERVICE_URL
+        value: http://jinbocho-catalog:8002
+      - key: CORS_ORIGINS
+        sync: false            # ["https://<il-tuo-fe>.onrender.com"] — imposta dopo il deploy del FE
+
+  # ---------------------------------------------------------------- FRONTEND (static)
+  - type: web
+    name: jinbocho-fe
+    runtime: static
+    repo: https://github.com/CHANGEME/jinbocho-fe
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false            # https://jinbocho-api-gateway.onrender.com — imposta dopo il deploy del gateway
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY

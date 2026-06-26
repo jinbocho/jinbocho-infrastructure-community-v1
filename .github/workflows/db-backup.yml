@@ -1,0 +1,107 @@
+name: Daily Database Backup
+
+# Runs every night at 02:00 UTC.
+# Can also be triggered manually from GitHub → Actions → "Run workflow".
+#
+# REQUIRED SECRETS (GitHub repo → Settings → Secrets → Actions):
+#   NEON_AUTH_DB_URL    — postgresql://user:pass@ep-xxx.neon.tech/auth_db?sslmode=require
+#   NEON_CATALOG_DB_URL — postgresql://user:pass@ep-xxx.neon.tech/catalog_db?sslmode=require
+#
+# Use the original Neon URLs (postgresql://), NOT the asyncpg-transformed ones.
+#
+# RESTORE a backup:
+#   1. Download the artifact from GitHub → Actions → the run → Artifacts
+#   2. gunzip auth_db_YYYYMMDD.sql.gz
+#   3. psql "$NEON_AUTH_DB_URL" < auth_db_YYYYMMDD.sql
+#      (same for catalog_db)
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Backup Neon databases
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install PostgreSQL 18 client
+        run: |
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            > /etc/apt/sources.list.d/pgdg.list'
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
+      - name: Set backup date
+        id: date
+        run: echo "TODAY=$(date +%Y%m%d_%H%M)" >> "$GITHUB_OUTPUT"
+
+      - name: Dump auth_db
+        env:
+          NEON_AUTH_DB_URL: ${{ secrets.NEON_AUTH_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$NEON_AUTH_DB_URL" ]]; then
+            echo "::error::Secret NEON_AUTH_DB_URL non configurato. Vai su Settings → Secrets → Actions e aggiungilo."
+            exit 1
+          fi
+          pg_dump "$NEON_AUTH_DB_URL" --no-password --verbose \
+            | gzip > "auth_db_${{ steps.date.outputs.TODAY }}.sql.gz"
+          SIZE=$(du -sh "auth_db_${{ steps.date.outputs.TODAY }}.sql.gz" | cut -f1)
+          echo "✅ auth_db — $SIZE"
+          if [[ "$SIZE" == "0" || "$SIZE" == "0B" ]]; then
+            echo "::error::Il dump di auth_db è vuoto. Verifica la connection string."
+            exit 1
+          fi
+
+      - name: Dump catalog_db
+        env:
+          NEON_CATALOG_DB_URL: ${{ secrets.NEON_CATALOG_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$NEON_CATALOG_DB_URL" ]]; then
+            echo "::error::Secret NEON_CATALOG_DB_URL non configurato. Vai su Settings → Secrets → Actions e aggiungilo."
+            exit 1
+          fi
+          pg_dump "$NEON_CATALOG_DB_URL" --no-password --verbose \
+            | gzip > "catalog_db_${{ steps.date.outputs.TODAY }}.sql.gz"
+          SIZE=$(du -sh "catalog_db_${{ steps.date.outputs.TODAY }}.sql.gz" | cut -f1)
+          echo "✅ catalog_db — $SIZE"
+          if [[ "$SIZE" == "0" || "$SIZE" == "0B" ]]; then
+            echo "::error::Il dump di catalog_db è vuoto. Verifica la connection string."
+            exit 1
+          fi
+
+      - name: Upload auth_db backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth_db_${{ steps.date.outputs.TODAY }}
+          path: auth_db_${{ steps.date.outputs.TODAY }}.sql.gz
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload catalog_db backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog_db_${{ steps.date.outputs.TODAY }}
+          path: catalog_db_${{ steps.date.outputs.TODAY }}.sql.gz
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "### Backup completato 🗄️" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Database | File | Dimensione |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|------|------------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| auth_db | auth_db_${{ steps.date.outputs.TODAY }}.sql.gz | $(du -sh auth_db_${{ steps.date.outputs.TODAY }}.sql.gz | cut -f1) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| catalog_db | catalog_db_${{ steps.date.outputs.TODAY }}.sql.gz | $(du -sh catalog_db_${{ steps.date.outputs.TODAY }}.sql.gz | cut -f1) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Retention: **90 giorni** — scarica da GitHub → Actions → questa run → Artifacts" >> "$GITHUB_STEP_SUMMARY"

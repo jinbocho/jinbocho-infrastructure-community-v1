@@ -1,0 +1,33 @@
+Jinbocho Source-Available License
+Copyright (c) 2026 Carmelo La Gamba. All rights reserved.
+
+Permission is hereby granted, free of charge, to any individual or household
+to use, copy, and run this software solely for personal, non-commercial,
+private use (the "Community Use").
+
+The following are explicitly PROHIBITED without prior written permission
+from the copyright holder:
+
+1. Any commercial use, including but not limited to selling, licensing,
+   or offering this software or any derivative as a product or service.
+2. Redistribution of this software, in source or binary form, to any
+   third party, whether modified or unmodified.
+3. Use of this software to provide hosted, managed, or installation
+   services to third parties, whether for compensation or not.
+4. Removal or alteration of this copyright notice or license text.
+5. Use of the "Jinbocho" name, logo, or trademarks to endorse or promote
+   any product or service without prior written permission.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+THE COPYRIGHT HOLDER SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY ARISING FROM THE USE OF THIS SOFTWARE.
+
+For commercial licensing, managed installation, or production deployment
+services, contact: jinbochoapp@gmail.com
+
+---
+
+This license covers the Community edition of Jinbocho. The optional AI
+module (`ai-service`) and its install tooling are distributed separately —
+see https://github.com/jinbocho/jinbocho-infrastructure-v1 or contact
+jinbochoapp@gmail.com for Pro licensing.

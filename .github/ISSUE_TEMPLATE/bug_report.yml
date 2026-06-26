@@ -1,0 +1,45 @@
+name: 🐛 Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part?
+      options:
+        - Frontend (UI)
+        - api-gateway
+        - auth-service
+        - catalog-service
+        - Deployment / Docker / Render
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: How are you running it, and any relevant logs?
+      placeholder: |
+        - Deployment: docker-compose.community.yml / from source / Render
+        - Browser & OS (if frontend):
+        - Relevant logs:
+    validations:
+      required: false

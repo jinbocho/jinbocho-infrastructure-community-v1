@@ -1,0 +1,65 @@
+name: Wake Render Services
+
+on:
+  workflow_dispatch:
+    inputs:
+      open_app:
+        description: "Open app URL in summary when done?"
+        type: boolean
+        default: true
+
+jobs:
+  wake:
+    name: Wake up all pods
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: frontend
+            url: https://jinbocho.onrender.com
+          - name: api-gateway
+            url: https://jinbocho-api-gateway-v1.onrender.com/health
+          - name: auth-service
+            url: https://jinbocho-auth-v1.onrender.com/health
+          - name: catalog-service
+            url: https://jinbocho-catalog-v1.onrender.com/health
+
+    steps:
+      - name: Wait for ${{ matrix.name }}
+        run: |
+          url="${{ matrix.url }}"
+          timeout=90
+          interval=5
+          elapsed=0
+
+          echo "Pinging $url ..."
+          while [ $elapsed -lt $timeout ]; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "✅ ${{ matrix.name }} is up (${elapsed}s)"
+              exit 0
+            fi
+            echo "⏳ HTTP $status — retrying in ${interval}s (${elapsed}s elapsed)"
+            sleep $interval
+            elapsed=$((elapsed + interval))
+          done
+
+          echo "❌ ${{ matrix.name }} did not respond after ${timeout}s"
+          exit 1
+
+  summary:
+    name: All services ready
+    runs-on: ubuntu-latest
+    needs: wake
+    if: success()
+    steps:
+      - name: Post summary
+        run: |
+          echo "## ☕ Jinbocho is awake!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All services responded with HTTP 200." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "👉 [Open Jinbocho](https://jinbocho.onrender.com)" >> $GITHUB_STEP_SUMMARY

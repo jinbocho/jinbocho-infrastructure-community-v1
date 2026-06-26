@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 Documentation
+    url: https://github.com/jinbocho
+    about: Setup, architecture, and service docs.
+  - name: ▶ Live demo
+    url: https://jinbocho.onrender.com
+    about: Try Jinbocho before filing an issue.

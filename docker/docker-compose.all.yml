@@ -1,0 +1,136 @@
+# Full stack — every service (incl. frontend) on a single server (any VPS).
+# Backend services pull pre-built images from GHCR; the frontend is built from
+# source (../jinbocho-fe) because no published frontend image exists yet.
+# A Caddy reverse proxy in front terminates TLS (automatic Let's Encrypt when
+# DOMAIN is a real hostname) and is the only container exposed to the host.
+#
+# Generated/managed by scripts/setup-vps-community.sh — see that script for
+# the one-shot install flow. Manual usage:
+#
+#   docker compose -f docker-compose.all.yml --env-file .env up -d --build
+#
+# `name:` is pinned so the Compose project identity stays stable across
+# re-runs from a different checkout path/directory name — otherwise Compose
+# picks a new project name but tries to recreate the same fixed
+# `container_name`s, which Docker refuses (name already in use by the old
+# project's containers).
+name: jinbocho
+
+services:
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: jinbocho-postgres-auth
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+      - ../init-sql/auth:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - jinbocho-network
+
+  postgres-catalog:
+    image: postgres:16-alpine
+    container_name: jinbocho-postgres-catalog
+    environment:
+      POSTGRES_DB: catalog_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_catalog_data:/var/lib/postgresql/data
+      - ../init-sql/catalog:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - jinbocho-network
+
+  auth-service:
+    image: ghcr.io/jinbocho/jinbocho-auth-v1:${JINBOCHO_VERSION:-latest}
+    container_name: jinbocho-auth
+    env_file:
+      - ../envs/auth-service.env
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - jinbocho-network
+
+  catalog-service:
+    image: ghcr.io/jinbocho/jinbocho-catalog-v1:${JINBOCHO_VERSION:-latest}
+    container_name: jinbocho-catalog
+    env_file:
+      - ../envs/catalog-service.env
+    depends_on:
+      postgres-catalog:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - jinbocho-network
+
+  api-gateway:
+    image: ghcr.io/jinbocho/jinbocho-api-gateway-v1:${JINBOCHO_VERSION:-latest}
+    container_name: jinbocho-api-gateway
+    env_file:
+      - ../envs/api-gateway.env
+    depends_on:
+      - auth-service
+      - catalog-service
+    restart: unless-stopped
+    networks:
+      - jinbocho-network
+    # No host port published — only reachable through the Caddy reverse proxy.
+
+  frontend:
+    build:
+      context: ../../jinbocho-fe
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    container_name: jinbocho-frontend
+    restart: unless-stopped
+    networks:
+      - jinbocho-network
+    # No host port published — only reachable through the Caddy reverse proxy.
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: jinbocho-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - api-gateway
+    networks:
+      - jinbocho-network
+
+networks:
+  jinbocho-network:
+    driver: bridge
+
+volumes:
+  postgres_auth_data:
+    name: jinbocho_postgres_auth_data
+  postgres_catalog_data:
+    name: jinbocho_postgres_catalog_data
+  caddy_data:
+    name: jinbocho_caddy_data
+  caddy_config:
+    name: jinbocho_caddy_config
