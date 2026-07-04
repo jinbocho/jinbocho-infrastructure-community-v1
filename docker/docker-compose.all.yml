@@ -121,6 +121,35 @@ services:
     networks:
       - jinbocho-network
 
+  # Observability (ADR-012) — off by default; enable with:
+  #   docker compose -f docker-compose.all.yml --profile observability --env-file .env up -d
+  # Local collector that scrapes /metrics, receives OTLP traces, tails
+  # container logs, and forwards all three to Grafana Cloud. See
+  # ../config.alloy for the pipeline and required env vars.
+  alloy:
+    image: grafana/alloy:v1.17.1
+    container_name: jinbocho-alloy
+    profiles:
+      - observability
+    env_file:
+      - ../envs/alloy.env   # copy from alloy.env.example and fill in values
+    volumes:
+      - ../config.alloy:/etc/alloy/config.alloy:ro
+      # Grants Alloy the same access as the host's `docker` group (root-
+      # equivalent) — see the security note at the top of config.alloy.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:12345:12345"   # Alloy UI — debugging only, never public
+    networks:
+      - jinbocho-network
+
 networks:
   jinbocho-network:
     driver: bridge
@@ -134,3 +163,5 @@ volumes:
     name: jinbocho_caddy_data
   caddy_config:
     name: jinbocho_caddy_config
+  alloy_data:
+    name: jinbocho_alloy_data

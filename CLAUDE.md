@@ -26,6 +26,13 @@ the api-gateway (`:8000`, or Caddy `:80`/`:443` in `.all.yml`) is the only inten
 entry point. One Postgres container per service (`postgres-auth`, `postgres-catalog`),
 each backed by `init-sql/<service>/` for first-boot SQL and a named volume.
 
+All three compose files also define an `alloy` service (Grafana Alloy — see
+`../config.alloy` and ADR-012) gated behind the `observability` Compose profile, off by
+default. Enable with `--profile observability` on any `docker compose` invocation; it
+scrapes `/metrics`, receives OTLP traces, tails container logs, and forwards everything to
+Grafana Cloud. Requires `envs/alloy.env` (copy from `envs/alloy.env.example`) plus
+`OTEL_ENABLED=true` in each service's own env file.
+
 ## Common commands
 
 ```bash

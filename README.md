@@ -176,6 +176,109 @@ the flags passed in.
 Registers a test family and exercises the main endpoints through the gateway
 (`http://localhost:8000`).
 
+## 6. Observability (Grafana Cloud)
+
+Optional and **off by default** — skip this section and the stack behaves
+exactly as described above. See `jinbocho-docs/architecture/adr/adr-012-observability-strategy.md`
+for the architecture rationale (why Alloy, why OTLP, why it's opt-in).
+
+When enabled, a local **Grafana Alloy** collector scrapes each service's
+`/metrics`, receives the OTLP traces they emit, tails `jinbocho-*` container
+logs, and forwards all three to Grafana Cloud over a single OTLP connection.
+
+### 6.1 Create a Grafana Cloud OTLP connection
+
+1. Log in at [grafana.com](https://grafana.com), pick or create a stack.
+   Choose an **EU region** (e.g. `prod-eu-west-2`) to keep data in-region —
+   see the GDPR plan in `jinbocho-docs/compliance/`.
+2. **Connections > Add new connection > OpenTelemetry (OTLP)**.
+3. Copy the three values shown there: the OTLP endpoint URL, the Instance ID,
+   and a generated API token.
+
+### 6.2 Configure Alloy
+
+```bash
+cp envs/alloy.env.example envs/alloy.env
+```
+
+Edit `envs/alloy.env` and fill in the three values from step 6.1:
+
+| Variable | Description |
+|---|---|
+| `GRAFANA_CLOUD_OTLP_ENDPOINT` | e.g. `https://otlp-gateway-prod-eu-west-2.grafana.net/otlp` |
+| `GRAFANA_CLOUD_OTLP_INSTANCE_ID` | From the OTLP connection page |
+| `GRAFANA_CLOUD_OTLP_API_TOKEN` | From the OTLP connection page |
+
+### 6.3 Turn on instrumentation in each service
+
+In `envs/auth-service.env`, `envs/catalog-service.env`, `envs/api-gateway.env`
+(and `envs/ai-service.env` on Pro), set:
+
+```
+OTEL_ENABLED=true
+```
+
+Leave `OTEL_EXPORTER_OTLP_ENDPOINT` at its default (`http://alloy:4318`) —
+that's Alloy's internal address on the Docker network, not Grafana Cloud's.
+
+### 6.4 Start the stack with the profile enabled
+
+Alloy only starts when the `observability` profile is passed — add
+`--profile observability` to whichever compose command you already use:
+
+```bash
+docker compose -f docker/docker-compose.community.yml --profile observability up -d
+```
+
+If services were already running before step 6.3, recreate them so the new
+env vars take effect:
+
+```bash
+docker compose -f docker/docker-compose.community.yml --profile observability up -d --force-recreate
+```
+
+Use the same `--profile observability` flag on every subsequent command
+against this stack (`logs`, `down`, `ps`, ...) — Compose only manages
+profile-gated services when the profile is explicitly passed.
+
+### 6.5 Verify it's working
+
+| Check | Where |
+|---|---|
+| Alloy's own component graph/health | `http://localhost:12345` (127.0.0.1-only — tunnel with `ssh -L 12345:localhost:12345 user@vps` on a remote host) |
+| Traces | Grafana Cloud → **Explore** → Tempo datasource → search `service.name = auth-service` (or `catalog-service`, `api-gateway`, `ai-service`) |
+| Metrics | Grafana Cloud → **Explore** → Prometheus datasource → query `up` — expect 4 targets (`ai-service` shows `0`/down on Community edition, which has no AI service — expected) |
+| Logs | Grafana Cloud → **Explore** → Loki datasource → query `{container=~"jinbocho-.*"}` |
+
+### 6.6 Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| Nothing arrives in Grafana Cloud | `docker compose --profile observability logs -f alloy` — look for auth errors (wrong Instance ID/token) or repeated connection failures to `GRAFANA_CLOUD_OTLP_ENDPOINT` |
+| Alloy container keeps restarting | Usually Docker socket access — see the security note below |
+| A real (running) service still shows as a `down` Prometheus target | `OTEL_ENABLED=true` was set but the container wasn't recreated — env changes don't apply to an already-running container (step 6.4) |
+| Logs have `trace_id=None` instead of a real ID | Expected for log lines outside a request/trace context (startup, background jobs); a normal request log line should carry a real hex trace ID |
+
+### 6.7 Turning it off
+
+```bash
+docker compose -f docker/docker-compose.community.yml --profile observability down
+```
+
+Optionally set `OTEL_ENABLED=false` back in each service's env file to also
+drop its `/metrics` endpoint.
+
+### Security note
+
+Log shipping requires mounting `/var/run/docker.sock` (read-only) into the
+Alloy container. `:ro` only makes the socket *file* read-only — it does not
+restrict what the Docker API itself allows over that socket, so this
+effectively grants Alloy the same power as a member of the host's `docker`
+group (root-equivalent). This is a reasonable trade-off on a single-operator
+VPS; if it isn't acceptable for yours, metrics and traces work independently
+of it — see the comment block at the top of `config.alloy` for what to
+remove to drop log shipping only.
+
 ---
 
 License: see [LICENSE](LICENSE). Contributing: see [CONTRIBUTING.md](CONTRIBUTING.md).

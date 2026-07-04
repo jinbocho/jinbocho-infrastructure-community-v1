@@ -1,0 +1,107 @@
+// Grafana Alloy — local observability collector for Jinbocho (ADR-012).
+//
+// Scrapes each service's /metrics, receives OTLP traces pushed by the
+// services themselves, tails jinbocho-* container logs via the Docker API,
+// and forwards all three signals to Grafana Cloud over a single OTLP
+// connection. In the Grafana Cloud UI: Connections > Add new connection >
+// OpenTelemetry (OTLP) gives you the endpoint + instance ID + API token
+// below.
+//
+// Required env vars (copy envs/alloy.env.example to envs/alloy.env and fill in):
+//   GRAFANA_CLOUD_OTLP_ENDPOINT      e.g. https://otlp-gateway-prod-eu-west-2.grafana.net/otlp
+//   GRAFANA_CLOUD_OTLP_INSTANCE_ID
+//   GRAFANA_CLOUD_OTLP_API_TOKEN
+//
+// Only runs when the "observability" Compose profile is enabled — see
+// docker-compose.community.yml.
+
+// ---- Traces: services push OTLP directly to this collector ----
+otelcol.receiver.otlp "app_traces" {
+	grpc {
+		endpoint = "0.0.0.0:4317"
+	}
+	http {
+		endpoint = "0.0.0.0:4318"
+	}
+
+	output {
+		traces = [otelcol.processor.batch.default.input]
+	}
+}
+
+// ---- Metrics: scrape each service's /metrics over the jinbocho-network ----
+// A target that isn't running (e.g. jinbocho-ai on Community edition, which
+// has no AI service) just shows up as "down" in scrape metrics — harmless.
+prometheus.scrape "app_metrics" {
+	targets = [
+		{"__address__" = "jinbocho-auth:8001", "service_name" = "auth-service"},
+		{"__address__" = "jinbocho-catalog:8002", "service_name" = "catalog-service"},
+		{"__address__" = "jinbocho-api-gateway:8000", "service_name" = "api-gateway"},
+		{"__address__" = "jinbocho-ai:8003", "service_name" = "ai-service"},
+	]
+	scrape_interval = "15s"
+	forward_to      = [otelcol.receiver.prometheus.app_metrics.receiver]
+}
+
+otelcol.receiver.prometheus "app_metrics" {
+	output {
+		metrics = [otelcol.processor.batch.default.input]
+	}
+}
+
+// ---- Logs: tail jinbocho-* application containers via the Docker API ----
+// Requires /var/run/docker.sock mounted read-only into this container (see
+// docker-compose.community.yml). Note that ":ro" on the socket file does NOT
+// restrict what the Docker API itself allows — any process that can reach
+// the socket has effectively the same power as a member of the host's
+// `docker` group (root-equivalent). Acceptable for a single-operator VPS;
+// drop this discovery/logs section (and the socket mount) if that trade-off
+// isn't acceptable for your deployment — metrics and traces above don't need it.
+discovery.docker "containers" {
+	host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "app_containers" {
+	targets = discovery.docker.containers.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/jinbocho-(auth|catalog|api-gateway|ai)"
+		action        = "keep"
+	}
+}
+
+loki.source.docker "app_logs" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.app_containers.output
+	forward_to = [otelcol.receiver.loki.app_logs.receiver]
+}
+
+otelcol.receiver.loki "app_logs" {
+	output {
+		logs = [otelcol.processor.batch.default.input]
+	}
+}
+
+// ---- Batch and ship everything to Grafana Cloud over OTLP ----
+otelcol.processor.batch "default" {
+	output {
+		traces  = [otelcol.exporter.otlphttp.grafana_cloud.input]
+		metrics = [otelcol.exporter.otlphttp.grafana_cloud.input]
+		logs    = [otelcol.exporter.otlphttp.grafana_cloud.input]
+	}
+}
+
+otelcol.exporter.otlphttp "grafana_cloud" {
+	client {
+		endpoint = sys.env("GRAFANA_CLOUD_OTLP_ENDPOINT")
+		auth     = otelcol.auth.basic.grafana_cloud.handler
+	}
+}
+
+otelcol.auth.basic "grafana_cloud" {
+	client_auth {
+		username = sys.env("GRAFANA_CLOUD_OTLP_INSTANCE_ID")
+		password = sys.env("GRAFANA_CLOUD_OTLP_API_TOKEN")
+	}
+}
