@@ -58,7 +58,6 @@ services:
   auth-service:
     build:
       context: ../../jinbocho-auth-v1
-      dockerfile: ../../jinbocho-auth-v1/Dockerfile
     container_name: jinbocho-auth
     env_file:
       - ../envs/auth-service.env   # copy from auth-service.env.example and fill in values
@@ -74,7 +73,6 @@ services:
   catalog-service:
     build:
       context: ../../jinbocho-catalog-v1
-      dockerfile: ../../jinbocho-catalog-v1/Dockerfile
     container_name: jinbocho-catalog
     env_file:
       - ../envs/catalog-service.env   # copy from catalog-service.env.example and fill in values
@@ -90,7 +88,6 @@ services:
   api-gateway:
     build:
       context: ../../jinbocho-api-gateway-v1
-      dockerfile: ../../jinbocho-api-gateway-v1/Dockerfile
     container_name: jinbocho-api-gateway
     env_file:
       - ../envs/api-gateway.env   # copy from api-gateway.env.example and fill in values
