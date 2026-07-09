@@ -23,6 +23,10 @@ GOOGLE_BOOKS_KEY=""
 SMTP_USER=""
 SMTP_PASSWORD=""
 EMAIL_FROM=""
+GRAFANA_ENABLED=""
+GRAFANA_OTLP_ENDPOINT="https://otlp-gateway-prod-eu-west-2.grafana.net/otlp"
+GRAFANA_OTLP_INSTANCE_ID=""
+GRAFANA_OTLP_API_TOKEN=""
 FRONTEND_BASE_URL=""
 FE_REPO="https://github.com/jinbocho/jinbocho-fe.git"
 FE_BRANCH="master"
@@ -51,6 +55,11 @@ Options:
                              set automatically; leave unset to keep the log/console fallback)
   --smtp-password <app-pw>   Gmail App Password for --smtp-user (https://myaccount.google.com/apppasswords)
   --email-from <email>       From address shown on outgoing emails (default: --smtp-user)
+  --grafana-enabled true|false   Ship metrics/logs/traces to Grafana Cloud via the built-in
+                                  Alloy collector, ADR-012 (default: asked interactively)
+  --grafana-otlp-endpoint <url>   Grafana Cloud OTLP endpoint (Connections > OpenTelemetry)
+  --grafana-otlp-instance-id <id> Grafana Cloud OTLP instance ID
+  --grafana-otlp-api-token <tok>  Grafana Cloud OTLP API token
   --frontend-base-url <url>  Public frontend URL used in email links (default: derived from --domain/IP)
   --fe-repo <git-url>        Frontend repo to clone (default: jinbocho/jinbocho-fe)
   --fe-branch <branch>       Frontend branch to clone (default: main)
@@ -72,6 +81,10 @@ while [[ $# -gt 0 ]]; do
     --smtp-user) SMTP_USER="$2"; shift 2 ;;
     --smtp-password) SMTP_PASSWORD="$2"; shift 2 ;;
     --email-from) EMAIL_FROM="$2"; shift 2 ;;
+    --grafana-enabled) GRAFANA_ENABLED="$2"; shift 2 ;;
+    --grafana-otlp-endpoint) GRAFANA_OTLP_ENDPOINT="$2"; shift 2 ;;
+    --grafana-otlp-instance-id) GRAFANA_OTLP_INSTANCE_ID="$2"; shift 2 ;;
+    --grafana-otlp-api-token) GRAFANA_OTLP_API_TOKEN="$2"; shift 2 ;;
     --frontend-base-url) FRONTEND_BASE_URL="$2"; shift 2 ;;
     --fe-repo) FE_REPO="$2"; shift 2 ;;
     --fe-branch) FE_BRANCH="$2"; shift 2 ;;
@@ -126,6 +139,20 @@ else
   warn "Nessuna email SMTP fornita: inviti e reset password finiranno solo nei log (docker logs jinbocho-auth)."
 fi
 prompt FRONTEND_BASE_URL "URL pubblico del frontend (usato nei link delle email):" "${SCHEME}://${PUBLIC_HOST}"
+
+prompt GRAFANA_ENABLED "Inviare metriche/log/tracce a Grafana Cloud (ADR-012, richiede un account gratuito su grafana.com)? (y/n):" "n"
+case "${GRAFANA_ENABLED,,}" in
+  y|yes|true|1) GRAFANA_ENABLED="true" ;;
+  *) GRAFANA_ENABLED="false" ;;
+esac
+if [[ "$GRAFANA_ENABLED" == "true" ]]; then
+  prompt GRAFANA_OTLP_ENDPOINT "Endpoint OTLP (Grafana Cloud > Connections > Add new connection > OpenTelemetry):" "$GRAFANA_OTLP_ENDPOINT"
+  prompt GRAFANA_OTLP_INSTANCE_ID "Instance ID (stessa pagina):" ""
+  prompt GRAFANA_OTLP_API_TOKEN "API Token (stessa pagina):" ""
+  [[ -n "$GRAFANA_OTLP_INSTANCE_ID" && -n "$GRAFANA_OTLP_API_TOKEN" ]] || die "Grafana abilitato: servono anche instance ID e API token (vedi --help)."
+else
+  log "Grafana Cloud non abilitato: puoi attivarlo in seguito riempiendo envs/alloy.env e i servizi con OTEL_ENABLED=true, poi rilanciando con --profile observability."
+fi
 
 # ── 1. Docker ───────────────────────────────────────────────────────────────
 if [[ "$SKIP_DOCKER_INSTALL" != "true" ]] && ! command -v docker &>/dev/null; then
@@ -250,6 +277,16 @@ else
   warn "Nessuna Google Books API key fornita: imposta GOOGLE_BOOKS_API_KEY in envs/catalog-service.env in seguito."
 fi
 
+if [[ "$GRAFANA_ENABLED" == "true" ]]; then
+  [[ -f envs/alloy.env ]] || cp envs/alloy.env.example envs/alloy.env
+  set_kv envs/alloy.env GRAFANA_CLOUD_OTLP_ENDPOINT "$GRAFANA_OTLP_ENDPOINT"
+  set_kv envs/alloy.env GRAFANA_CLOUD_OTLP_INSTANCE_ID "$GRAFANA_OTLP_INSTANCE_ID"
+  set_kv envs/alloy.env GRAFANA_CLOUD_OTLP_API_TOKEN "$GRAFANA_OTLP_API_TOKEN"
+  for f in envs/auth-service.env envs/catalog-service.env envs/api-gateway.env; do
+    set_kv "$f" OTEL_ENABLED "true"
+  done
+fi
+
 # ── 5. Caddyfile (reverse proxy + HTTPS) ────────────────────────────────────
 log "Genero Caddyfile per ${SCHEME}://${PUBLIC_HOST}"
 {
@@ -291,10 +328,13 @@ for name in jinbocho-postgres-auth jinbocho-postgres-catalog \
   fi
 done
 
+COMPOSE_ARGS=(-f docker/docker-compose.all.yml --env-file .env)
+[[ "$GRAFANA_ENABLED" == "true" ]] && COMPOSE_ARGS+=(--profile observability)
+
 log "Pull immagini backend (GHCR) e build frontend da sorgente..."
-docker compose -f docker/docker-compose.all.yml --env-file .env pull --ignore-pull-failures
-docker compose -f docker/docker-compose.all.yml --env-file .env build frontend
-docker compose -f docker/docker-compose.all.yml --env-file .env up -d
+docker compose "${COMPOSE_ARGS[@]}" pull --ignore-pull-failures
+docker compose "${COMPOSE_ARGS[@]}" build frontend
+docker compose "${COMPOSE_ARGS[@]}" up -d
 
 # ── 7. Smoke test ─────────────────────────────────────────────────────────
 log "Attendo che il gateway risponda..."
@@ -309,7 +349,7 @@ echo
 if [[ "$ok" == "true" ]]; then
   log "✅ Stack online."
 else
-  warn "Il gateway non ha ancora risposto su $HEALTH_URL — controlla 'docker compose -f docker/docker-compose.all.yml logs -f'."
+  warn "Il gateway non ha ancora risposto su $HEALTH_URL — controlla 'docker compose ${COMPOSE_ARGS[@]} logs -f'."
 fi
 
 cat <<SUMMARY
@@ -320,14 +360,15 @@ cat <<SUMMARY
   Frontend:        ${SCHEME}://${PUBLIC_HOST}
   API gateway:      ${SCHEME}://${PUBLIC_HOST}/api  (health: ${HEALTH_URL})
   Email (inviti/reset): $( [[ -n "$SMTP_USER" ]] && echo "via Gmail ($SMTP_USER)" || echo "fallback su log (docker logs jinbocho-auth) — imposta SMTP_USER/SMTP_PASSWORD in envs/auth-service.env per attivarla" )
+  Metriche/log (Grafana Cloud): $( [[ "$GRAFANA_ENABLED" == "true" ]] && echo "abilitate — dashboard su grafana.com" || echo "disabilitate — riempi envs/alloy.env e rilancia con --profile observability per attivarle" )
   Secrets generati: .env, envs/*.env (non committati, vedi .gitignore)
 
   Prossimo passo: apri il frontend nel browser e registra la prima famiglia
   (diventa l'admin). Da lì in poi è tutto self-service per il cliente.
 
   Comandi utili:
-    docker compose -f docker/docker-compose.all.yml logs -f
-    docker compose -f docker/docker-compose.all.yml ps
-    docker compose -f docker/docker-compose.all.yml down        # ferma tutto (i dati restano nei volumi)
+    docker compose ${COMPOSE_ARGS[@]} logs -f
+    docker compose ${COMPOSE_ARGS[@]} ps
+    docker compose ${COMPOSE_ARGS[@]} down        # ferma tutto (i dati restano nei volumi)
   ───────────────────────────────────────────────────────────
 SUMMARY
