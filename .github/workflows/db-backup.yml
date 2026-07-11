@@ -16,8 +16,10 @@ name: Daily Database Backup
 #      (same for catalog_db)
 
 on:
-  schedule:
-    - cron: "0 2 * * *"
+  # Nightly schedule disabled 2026-07-11 (not needed right now). Re-enable by
+  # uncommenting the schedule block below. Manual runs still work via workflow_dispatch.
+  # schedule:
+  #   - cron: "0 2 * * *"
   workflow_dispatch:
 
 jobs:
