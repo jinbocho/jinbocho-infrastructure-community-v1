@@ -170,8 +170,8 @@
         "kind": "Panel",
         "spec": {
           "id": 12,
-          "title": "Recent container logs (jinbocho-*) — adjust the label if empty",
-          "description": "Alloy's discovery.relabel in config.alloy only KEEPS targets matching /jinbocho-(auth|catalog|api-gateway|ai) — it never renames __meta_docker_container_name to a plain label, so the exact Loki label Alloy's loki.source.docker actually exports wasn't confirmed by code inspection. Open Explore > your Loki datasource > Label browser, find the right label (commonly \"container\" or similar) and edit this panel's query to match — this is a best-effort starting query.",
+          "title": "Recent container logs by service",
+          "description": "config.alloy's discovery.relabel sets loki.resource.service.name per container (auth-service/catalog-service/api-gateway/ai-service), which otelcol.receiver.loki promotes to the OTel service.name resource attribute — Grafana Cloud indexes this as the service_name label, same as the metrics panels above. Filtered by the $service_name template variable.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -188,7 +188,7 @@
                         "name": "grafanacloud-logs"
                       },
                       "spec": {
-                        "expr": "{container=~\"jinbocho-.+\"}"
+                        "expr": "{service_name=~\"$service_name\"}"
                       }
                     },
                     "refId": "A",
@@ -998,7 +998,7 @@
           {
             "kind": "RowsLayoutRow",
             "spec": {
-              "title": "Logs (verify label name before relying on this — see note below)",
+              "title": "Logs",
               "collapse": false,
               "layout": {
                 "kind": "GridLayout",

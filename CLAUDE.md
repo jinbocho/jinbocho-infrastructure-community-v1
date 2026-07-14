@@ -28,10 +28,13 @@ each backed by `init-sql/<service>/` for first-boot SQL and a named volume.
 
 All three compose files also define an `alloy` service (Grafana Alloy — see
 `../config.alloy` and ADR-012) gated behind the `observability` Compose profile, off by
-default. Enable with `--profile observability` on any `docker compose` invocation; it
-scrapes `/metrics`, receives OTLP traces, tails container logs, and forwards everything to
-Grafana Cloud. Requires `envs/alloy.env` (copy from `envs/alloy.env.example`) plus
-`OTEL_ENABLED=true` in each service's own env file.
+default, alongside `node-exporter` (host CPU/RAM/disk), `cadvisor` (per-container CPU/RAM)
+and `postgres-exporter-auth`/`postgres-exporter-catalog` (connection saturation) — all four
+scraped by Alloy and forwarded to Grafana Cloud alongside app metrics/traces/logs. Enable
+with `--profile observability` on any `docker compose` invocation. Requires `envs/alloy.env`
+(copy from `envs/alloy.env.example`) plus `OTEL_ENABLED=true` in each service's own env file.
+Dashboards live in `dashboards/` (`jinbocho-overview.json`, `jinbocho-logs-errors.json`,
+`jinbocho-infra.json`) — import manually via Grafana Cloud UI, not auto-provisioned.
 
 ## Common commands
 

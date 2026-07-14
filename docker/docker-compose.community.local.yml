@@ -127,6 +127,68 @@ services:
     networks:
       - jinbocho-network
 
+  # Host metrics (ADR-012) — CPU/RAM/disk/load, scraped by Alloy above.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: jinbocho-node-exporter
+    profiles:
+      - observability
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - jinbocho-network
+
+  # Per-container CPU/memory (ADR-012). Linux-only cgroup introspection —
+  # expect this to fail health on macOS Docker Desktop; harmless since it's
+  # opt-in and the target (Hetzner VPS, ADR-009) is Linux.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: jinbocho-cadvisor
+    profiles:
+      - observability
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - jinbocho-network
+
+  # Postgres connection/saturation metrics (ADR-012 risk #1) — one exporter
+  # per database, reusing the same POSTGRES_PASSWORD as the DB containers.
+  postgres-exporter-auth:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: jinbocho-postgres-exporter-auth
+    profiles:
+      - observability
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres-auth:5432/auth_db?sslmode=disable"
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    networks:
+      - jinbocho-network
+
+  postgres-exporter-catalog:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: jinbocho-postgres-exporter-catalog
+    profiles:
+      - observability
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres-catalog:5432/catalog_db?sslmode=disable"
+    depends_on:
+      postgres-catalog:
+        condition: service_healthy
+    networks:
+      - jinbocho-network
+
 networks:
   jinbocho-network:
     driver: bridge

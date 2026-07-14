@@ -25,7 +25,7 @@
     { "type": "panel", "id": "logs", "name": "Logs", "version": "" }
   ],
   "title": "Jinbocho — Logs & Errors",
-  "description": "Error triage view across all 4 services. ERROR-level detection relies on the documented log line format (see CLAUDE.md: '%Y-%m-%d %H:%M:%S LEVEL [logger.name] message') via a text regex, NOT a Loki label, since the exact stream-selector label Alloy assigns to jinbocho-* containers was not confirmed from config.alloy (it only keeps matching targets, never renames a label) — verify/adjust the stream selector via the Loki label browser in Explore if panels show no data.",
+  "description": "Error triage view across all 4 services, filterable by the $service_name variable. Log streams are selected by the service_name label — config.alloy's discovery.relabel sets loki.resource.service.name per container (auth-service/catalog-service/api-gateway/ai-service), promoted by otelcol.receiver.loki to the OTel service.name resource attribute, which Grafana Cloud indexes as service_name (same label used by the Prometheus metrics panels, so metrics and logs correlate). ERROR-level detection still relies on a text regex over the documented log line format (CLAUDE.md: '%Y-%m-%d %H:%M:%S LEVEL [logger.name] message'), not a Loki label, since level isn't parsed out as a structured field.",
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
@@ -51,6 +51,20 @@
         "current": {},
         "hide": 0,
         "label": "Loki"
+      },
+      {
+        "name": "service_name",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "query": { "query": "label_values(up, service_name)", "refId": "service_name" },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": { "text": "All", "value": ["$__all"] },
+        "label": "Service",
+        "hide": 0
       }
     ]
   },
@@ -67,13 +81,13 @@
       "id": 2,
       "type": "timeseries",
       "title": "5xx error rate by service",
-      "description": "100 * sum(rate(http_requests_total{status=\"5xx\"}[5m])) by (service_name) / sum(rate(http_requests_total[5m])) by (service_name)",
+      "description": "100 * sum(rate(http_requests_total{service_name=~\"$service_name\", status=\"5xx\"}[5m])) by (service_name) / sum(rate(http_requests_total{service_name=~\"$service_name\"}[5m])) by (service_name)",
       "gridPos": { "h": 7, "w": 24, "x": 0, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "100 * sum(rate(http_requests_total{status=\"5xx\"}[5m])) by (service_name) / sum(rate(http_requests_total[5m])) by (service_name)",
+          "expr": "100 * sum(rate(http_requests_total{service_name=~\"$service_name\", status=\"5xx\"}[5m])) by (service_name) / sum(rate(http_requests_total{service_name=~\"$service_name\"}[5m])) by (service_name)",
           "legendFormat": "{{service_name}}",
           "refId": "A"
         }
@@ -100,15 +114,15 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Total log lines per minute (all jinbocho-* containers)",
-      "description": "sum(count_over_time({container=~\"jinbocho-.+\"}[1m])) — adjust the label name (container) if your Loki label browser shows a different one.",
+      "title": "Log lines per minute by service",
+      "description": "sum(count_over_time({service_name=~\"$service_name\"}[1m])) by (service_name)",
       "gridPos": { "h": 7, "w": 12, "x": 0, "y": 9 },
       "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "sum(count_over_time({container=~\"jinbocho-.+\"}[1m]))",
-          "legendFormat": "log lines/min",
+          "expr": "sum(count_over_time({service_name=~\"$service_name\"}[1m])) by (service_name)",
+          "legendFormat": "{{service_name}}",
           "refId": "A"
         }
       ],
@@ -118,15 +132,15 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "ERROR-level log lines per minute",
-      "description": "sum(count_over_time({container=~\"jinbocho-.+\"} |~ \" ERROR \" [1m])) — matches the documented log format '%Y-%m-%d %H:%M:%S LEVEL [logger.name] message' from CLAUDE.md.",
+      "title": "ERROR-level log lines per minute by service",
+      "description": "sum(count_over_time({service_name=~\"$service_name\"} |~ \" ERROR \" [1m])) by (service_name) — matches the documented log format '%Y-%m-%d %H:%M:%S LEVEL [logger.name] message' from CLAUDE.md.",
       "gridPos": { "h": 7, "w": 12, "x": 12, "y": 9 },
       "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "sum(count_over_time({container=~\"jinbocho-.+\"} |~ \" ERROR \" [1m]))",
-          "legendFormat": "ERROR lines/min",
+          "expr": "sum(count_over_time({service_name=~\"$service_name\"} |~ \" ERROR \" [1m])) by (service_name)",
+          "legendFormat": "{{service_name}}",
           "refId": "A"
         }
       ],
@@ -150,14 +164,14 @@
     {
       "id": 7,
       "type": "logs",
-      "title": "Recent ERROR / Exception lines (all services)",
-      "description": "{container=~\"jinbocho-.+\"} |~ \" ERROR |Traceback|Exception\"",
+      "title": "Recent ERROR / Exception lines",
+      "description": "{service_name=~\"$service_name\"} |~ \" ERROR |Traceback|Exception\"",
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 17 },
       "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "{container=~\"jinbocho-.+\"} |~ \" ERROR |Traceback|Exception\"",
+          "expr": "{service_name=~\"$service_name\"} |~ \" ERROR |Traceback|Exception\"",
           "refId": "A"
         }
       ],
@@ -174,14 +188,14 @@
     {
       "id": 9,
       "type": "logs",
-      "title": "All logs (jinbocho-*)",
-      "description": "{container=~\"jinbocho-.+\"} — unfiltered, for manual investigation.",
+      "title": "All logs",
+      "description": "{service_name=~\"$service_name\"} — unfiltered, for manual investigation.",
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 28 },
       "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "{container=~\"jinbocho-.+\"}",
+          "expr": "{service_name=~\"$service_name\"}",
           "refId": "A"
         }
       ],

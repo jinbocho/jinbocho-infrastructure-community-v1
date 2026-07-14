@@ -1,11 +1,12 @@
 // Grafana Alloy — local observability collector for Jinbocho (ADR-012).
 //
-// Scrapes each service's /metrics, receives OTLP traces pushed by the
-// services themselves, tails jinbocho-* container logs via the Docker API,
-// and forwards all three signals to Grafana Cloud over a single OTLP
-// connection. In the Grafana Cloud UI: Connections > Add new connection >
-// OpenTelemetry (OTLP) gives you the endpoint + instance ID + API token
-// below.
+// Scrapes each service's /metrics plus host (node_exporter), container
+// (cAdvisor) and Postgres (postgres_exporter) metrics, receives OTLP traces
+// pushed by the services themselves, tails jinbocho-* container logs via the
+// Docker API, and forwards all three signals to Grafana Cloud over a single
+// OTLP connection. In the Grafana Cloud UI: Connections > Add new
+// connection > OpenTelemetry (OTLP) gives you the endpoint + instance ID +
+// API token below.
 //
 // Required env vars (copy envs/alloy.env.example to envs/alloy.env and fill in):
 //   GRAFANA_CLOUD_OTLP_ENDPOINT      e.g. https://otlp-gateway-prod-eu-west-2.grafana.net/otlp
@@ -40,10 +41,25 @@ prometheus.scrape "app_metrics" {
 		{"__address__" = "jinbocho-ai:8003", "service_name" = "ai-service"},
 	]
 	scrape_interval = "15s"
-	forward_to      = [otelcol.receiver.prometheus.app_metrics.receiver]
+	forward_to      = [otelcol.receiver.prometheus.all_metrics.receiver]
 }
 
-otelcol.receiver.prometheus "app_metrics" {
+// ---- Metrics: host (node_exporter), containers (cAdvisor), Postgres
+// (postgres_exporter) — the "we don't know if the VPS itself is dying"
+// risk called out as #1 in ADR-012. All four exporter containers are
+// defined in docker-compose under the same "observability" profile.
+prometheus.scrape "infra_metrics" {
+	targets = [
+		{"__address__" = "jinbocho-node-exporter:9100", "service_name" = "node-exporter"},
+		{"__address__" = "jinbocho-cadvisor:8080", "service_name" = "cadvisor"},
+		{"__address__" = "jinbocho-postgres-exporter-auth:9187", "service_name" = "postgres-auth"},
+		{"__address__" = "jinbocho-postgres-exporter-catalog:9187", "service_name" = "postgres-catalog"},
+	]
+	scrape_interval = "30s"
+	forward_to      = [otelcol.receiver.prometheus.all_metrics.receiver]
+}
+
+otelcol.receiver.prometheus "all_metrics" {
 	output {
 		metrics = [otelcol.processor.batch.default.input]
 	}
@@ -68,6 +84,41 @@ discovery.relabel "app_containers" {
 		source_labels = ["__meta_docker_container_name"]
 		regex         = "/jinbocho-(auth|catalog|api-gateway|ai)"
 		action        = "keep"
+	}
+
+	// otelcol.receiver.loki only promotes labels with the "loki.resource."
+	// prefix into OTel resource attributes (stripping the prefix). Without
+	// this, no stream ever gets a service.name resource attribute, and
+	// Grafana Cloud Logs falls back to the "unknown_service" placeholder for
+	// everything — these names must match the service_name values used by
+	// prometheus.scrape "app_metrics" above so Logs and Metrics correlate
+	// for the four application services (infra_metrics above has no logs).
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/jinbocho-auth"
+		target_label  = "loki.resource.service.name"
+		replacement   = "auth-service"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/jinbocho-catalog"
+		target_label  = "loki.resource.service.name"
+		replacement   = "catalog-service"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/jinbocho-api-gateway"
+		target_label  = "loki.resource.service.name"
+		replacement   = "api-gateway"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/jinbocho-ai"
+		target_label  = "loki.resource.service.name"
+		replacement   = "ai-service"
 	}
 }
 
