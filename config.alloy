@@ -86,38 +86,34 @@ discovery.relabel "app_containers" {
 		action        = "keep"
 	}
 
-	// otelcol.receiver.loki only promotes labels with the "loki.resource."
-	// prefix into OTel resource attributes (stripping the prefix). Without
-	// this, no stream ever gets a service.name resource attribute, and
-	// Grafana Cloud Logs falls back to the "unknown_service" placeholder for
-	// everything — these names must match the service_name values used by
+	// These names must match the service_name values used by
 	// prometheus.scrape "app_metrics" above so Logs and Metrics correlate
 	// for the four application services (infra_metrics above has no logs).
 	rule {
 		source_labels = ["__meta_docker_container_name"]
 		regex         = "/jinbocho-auth"
-		target_label  = "loki.resource.service.name"
+		target_label  = "service_name"
 		replacement   = "auth-service"
 	}
 
 	rule {
 		source_labels = ["__meta_docker_container_name"]
 		regex         = "/jinbocho-catalog"
-		target_label  = "loki.resource.service.name"
+		target_label  = "service_name"
 		replacement   = "catalog-service"
 	}
 
 	rule {
 		source_labels = ["__meta_docker_container_name"]
 		regex         = "/jinbocho-api-gateway"
-		target_label  = "loki.resource.service.name"
+		target_label  = "service_name"
 		replacement   = "api-gateway"
 	}
 
 	rule {
 		source_labels = ["__meta_docker_container_name"]
 		regex         = "/jinbocho-ai"
-		target_label  = "loki.resource.service.name"
+		target_label  = "service_name"
 		replacement   = "ai-service"
 	}
 }
@@ -128,9 +124,36 @@ loki.source.docker "app_logs" {
 	forward_to = [otelcol.receiver.loki.app_logs.receiver]
 }
 
-otelcol.receiver.loki "app_logs" {
+// otelcol.receiver.loki (the Loki -> OTel direction) flattens every Loki
+// stream label into a plain OTel *log record* attribute — there is no
+// "loki.resource." prefix convention on this side (that hint only exists on
+// otelcol.exporter.loki, the opposite OTel -> Loki direction; see
+// pkg/translator/loki.ConvertEntryToLogRecord in opentelemetry-collector-contrib,
+// which calls lr.Attributes().PutStr for every label and never touches
+// resource attributes). Left alone, no stream ever gets an OTel
+// "service.name" *resource* attribute, so Grafana Cloud Logs groups
+// everything under "unknown_service" regardless of what the label above is
+// named. This processor explicitly promotes the "service_name" log
+// attribute (set by discovery.relabel.app_containers above) into the
+// resource attribute Grafana Cloud actually facets services on.
+otelcol.processor.transform "promote_service_name" {
+	error_mode = "ignore"
+
+	log_statements {
+		context = "log"
+		statements = [
+			`set(resource.attributes["service.name"], attributes["service_name"]) where attributes["service_name"] != nil`,
+		]
+	}
+
 	output {
 		logs = [otelcol.processor.batch.default.input]
+	}
+}
+
+otelcol.receiver.loki "app_logs" {
+	output {
+		logs = [otelcol.processor.transform.promote_service_name.input]
 	}
 }
 
