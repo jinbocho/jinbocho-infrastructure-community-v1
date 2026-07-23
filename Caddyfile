@@ -1,0 +1,17 @@
+{
+    email jinbochoapp@gmail.com
+}
+
+jinbocho.it, www.jinbocho.it, www.jinbocho.eu {
+    redir https://jinbocho.eu{uri} permanent
+}
+
+jinbocho.eu, 46.62.213.197.sslip.io {
+    encode gzip
+    handle_path /api/* {
+        reverse_proxy api-gateway:8000
+    }
+    handle {
+        reverse_proxy frontend:80
+    }
+}

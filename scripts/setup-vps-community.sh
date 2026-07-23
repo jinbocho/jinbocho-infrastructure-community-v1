@@ -288,18 +288,21 @@ if [[ "$GRAFANA_ENABLED" == "true" ]]; then
 fi
 
 # ── 5. Caddyfile (reverse proxy + HTTPS) ────────────────────────────────────
-log "Genero Caddyfile per ${SCHEME}://${PUBLIC_HOST}"
-{
-  if [[ -n "$DOMAIN" ]]; then
-    echo "{"
-    echo "    email ${LETSENCRYPT_EMAIL}"
-    echo "}"
-    echo "${DOMAIN} {"
-  else
-    warn "Nessun dominio indicato: Caddy servirà in HTTP semplice su http://${SERVER_IP} (nessun certificato TLS)."
-    echo "http://${SERVER_IP} {"
-  fi
-  cat <<'CADDY_BODY'
+if [[ -f Caddyfile ]]; then
+  log "Caddyfile esistente trovato: lo lascio invariato (rimuovilo manualmente per rigenerarlo)."
+else
+  log "Genero Caddyfile per ${SCHEME}://${PUBLIC_HOST}"
+  {
+    if [[ -n "$DOMAIN" ]]; then
+      echo "{"
+      echo "    email ${LETSENCRYPT_EMAIL}"
+      echo "}"
+      echo "${DOMAIN} {"
+    else
+      warn "Nessun dominio indicato: Caddy servirà in HTTP semplice su http://${SERVER_IP} (nessun certificato TLS)."
+      echo "http://${SERVER_IP} {"
+    fi
+    cat <<'CADDY_BODY'
     encode gzip
     handle_path /api/* {
         reverse_proxy api-gateway:8000
@@ -309,7 +312,8 @@ log "Genero Caddyfile per ${SCHEME}://${PUBLIC_HOST}"
     }
 }
 CADDY_BODY
-} > Caddyfile
+  } > Caddyfile
+fi
 
 # ── 6. Build & start ─────────────────────────────────────────────────────────
 # The compose file uses fixed container_name values, but older checkouts (or
