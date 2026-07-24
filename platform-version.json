@@ -1,0 +1,5 @@
+{
+  "version": "0.0.0",
+  "note": "0.0.0 means no Community platform release has been cut yet. Bumped by the jinbocho-release skill.",
+  "bundle": ["auth-service", "catalog-service", "api-gateway", "frontend"]
+}
