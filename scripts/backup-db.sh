@@ -31,6 +31,16 @@
 #   gunzip -c /var/backups/jinbocho/jinbocho_20260618_0300.dump.gz \
 #     | docker exec -i jinbocho-postgres pg_restore -U postgres -d jinbocho -n catalog --clean --if-exists
 #
+# Nota (verificato con restore di prova su un target vuoto, 2026-08-01):
+# pg_restore su un DATABASE VUOTO fallisce con 1 errore ignorabile sulla
+# ricreazione dell'indice full-text catalog.ix_bib_records_search_vector
+# ("function unaccent(unknown, text) does not exist") — stesso problema di
+# search_path già noto per pg_dump moderno, qui sul path -Fc. Tutti i DATI
+# si ripristinano correttamente (verificato riga per riga), solo quel
+# indice derivato manca. Su un restore reale, ricrealo dopo con la
+# migration di catalog-service (alembic upgrade, idempotente — le
+# revisioni 0024/0026 lo ricreano) invece di indagare da capo.
+#
 # Copia off-site opzionale su GitHub Releases: imposta --github-repo (o la
 # env GITHUB_BACKUP_REPO) con una repo privata dedicata ai backup
 # (es. jinbocho/jinbocho-db-backups). Richiede la GitHub CLI (`gh`) già
