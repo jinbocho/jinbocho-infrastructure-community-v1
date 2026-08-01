@@ -23,8 +23,8 @@ under a separate commercial license and is not part of this repo.
 
 Backend services never publish ports beyond `127.0.0.1` (or not at all in `.all.yml`) —
 the api-gateway (`:8000`, or Caddy `:80`/`:443` in `.all.yml`) is the only intended public
-entry point. ADR-018 (dev/local scope only — production is still the pre-ADR-018
-three-database topology until the separate data-migration work lands): one Postgres
+entry point. ADR-018 (database unification, live in production since 2026-08-01 — see
+`jinbocho-docs/architecture/PRODUCTION_DB_UNIFICATION_RUNBOOK.md`): one Postgres
 container/database (`postgres`, database `jinbocho`) shared by auth/catalog/ai, each
 isolated in its own Postgres SCHEMA + least-privilege ROLE, provisioned by
 `init-sql/00-schemas-and-roles.sh` (first-boot SQL) and one named volume.

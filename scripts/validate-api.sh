@@ -3,7 +3,7 @@
 # Exercises BE1 (users/families proxy), BE2 (catalog JWT), BE3 (book writes use `sub`).
 set -uo pipefail
 
-GW="http://localhost:8000"
+GW="${GW:-http://localhost:8000}"
 PASS=0
 FAIL=0
 
@@ -39,9 +39,9 @@ echo "── Health ──"
 req GET "$GW/health"; check "gateway /health" 200 "$CODE" "$RESP"
 
 echo "── Auth ──"
-req POST "$GW/v1/auth/register" "{\"family_name\":\"Val Family\",\"admin_email\":\"$EMAIL\",\"admin_password\":\"SecurePass123!\",\"admin_full_name\":\"Val Admin\"}"
+req POST "$GW/v1/auth/register" "{\"library_name\":\"Val Library\",\"accepted_privacy_version\":\"1.0\",\"accepted_terms_version\":\"1.0\",\"admin_email\":\"$EMAIL\",\"admin_password\":\"SecurePass123!\",\"admin_full_name\":\"Val Admin\"}"
 check "register family" 201 "$CODE" "$RESP"
-FAMILY_ID=$(jval family_id)
+FAMILY_ID=$(jval library_id)
 
 req POST "$GW/v1/auth/login" "{\"email\":\"$EMAIL\",\"password\":\"SecurePass123!\"}"
 check "login" 200 "$CODE" "$RESP"
@@ -56,8 +56,8 @@ req POST "$GW/v1/users/" "{\"email\":\"editor+$(date +%s)@example.com\",\"passwo
 check "POST /v1/users/ (create)" 201 "$CODE" "$RESP"
 
 echo "── Families (BE1: gateway proxy) ──"
-req GET "$GW/v1/families/$FAMILY_ID" "" "$TOKEN"; check "GET /v1/families/{id}" 200 "$CODE" "$RESP"
-req PATCH "$GW/v1/families/$FAMILY_ID" "{\"description\":\"Updated\"}" "$TOKEN"; check "PATCH /v1/families/{id}" 200 "$CODE" "$RESP"
+req GET "$GW/v1/libraries/$FAMILY_ID" "" "$TOKEN"; check "GET /v1/libraries/{id}" 200 "$CODE" "$RESP"
+req PATCH "$GW/v1/libraries/$FAMILY_ID" "{\"description\":\"Updated\"}" "$TOKEN"; check "PATCH /v1/libraries/{id}" 200 "$CODE" "$RESP"
 
 echo "── Locations ──"
 req POST "$GW/v1/location/rooms/" "{\"name\":\"Living Room\"}" "$TOKEN"; check "POST rooms" 201 "$CODE" "$RESP"
