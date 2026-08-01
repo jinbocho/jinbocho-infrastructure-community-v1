@@ -38,8 +38,9 @@ per-container metrics via `/proc`, `/sys` and the Docker socket, built-in dashbo
 
 Replaced the Grafana Alloy/node-exporter/cadvisor/postgres-exporter stack (ADR-012) on
 2026-08-01 — that setup shipped metrics/traces/logs to Grafana Cloud; this is
-local-only and much lighter for a single-VPS deployment. `dashboards/` (the old Grafana
-Cloud JSON exports) and ADR-012 itself are now historical — not deleted, but describe the
+local-only and much lighter for a single-VPS deployment. The old Grafana Cloud dashboard
+JSON exports (`dashboards/`) were removed since Alloy no longer exists to feed them.
+ADR-012 itself (`jinbocho-docs`) is left as historical reference — describes the
 superseded setup.
 
 ## Common commands

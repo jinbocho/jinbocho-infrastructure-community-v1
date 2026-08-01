@@ -4,7 +4,7 @@
 # VPS and generates a fully-flagged, idempotent setup-vps-community.sh
 # invocation — every value explicit, nothing left to interactive
 # prompts/defaults. Re-running the generated command later (e.g. to flip on
-# the Grafana Cloud observability profile) can't silently reset the
+# the Netdata observability profile) can't silently reset the
 # Caddyfile/domain to plain HTTP or blank out an already-configured value,
 # since setup-vps-community.sh only applies its interactive defaults when a
 # flag is left empty AND not running --non-interactive.
@@ -52,12 +52,9 @@ OUT="$HOME/jinbocho-reinstall.sh"
   [[ -n "$EMAIL_FROM" ]]        && echo "  --email-from '$EMAIL_FROM' \\"
   [[ -n "$FRONTEND_BASE_URL" ]] && echo "  --frontend-base-url '$FRONTEND_BASE_URL' \\"
   [[ -n "$JINBOCHO_VERSION" ]]  && echo "  --version '$JINBOCHO_VERSION' \\"
-  echo "  --grafana-enabled true \\"
-  echo "  --grafana-otlp-endpoint 'INSERISCI_ENDPOINT_GRAFANA' \\"
-  echo "  --grafana-otlp-instance-id 'INSERISCI_INSTANCE_ID' \\"
-  echo "  --grafana-otlp-api-token 'INSERISCI_API_TOKEN'"
+  echo "  --netdata-enabled true"
 } > "$OUT"
 
 chmod 700 "$OUT"
 log "Generato: $OUT"
-log "Apri e completa i placeholder INSERISCI_* (o rimuovi le righe --grafana-* se non vuoi abilitarlo), poi: bash $OUT"
+log "Rivedi i valori, poi: bash $OUT"
