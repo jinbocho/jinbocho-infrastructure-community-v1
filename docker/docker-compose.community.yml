@@ -82,81 +82,39 @@ services:
     networks:
       - jinbocho-network
 
-  # Observability (ADR-012) — off by default; enable with:
+  # Observability — replaces the Grafana Alloy/node-exporter/cadvisor/
+  # postgres-exporter stack (ADR-012) with a single container. Host +
+  # per-container metrics via /proc, /sys and the Docker socket; built-in
+  # dashboard on :19999, bound to localhost only — reach it with
+  # `ssh -L 19999:localhost:19999 <host>` then http://localhost:19999.
+  # Off by default; enable with:
   #   docker compose -f docker-compose.community.yml --profile observability up -d
-  # Local collector that scrapes /metrics, receives OTLP traces, tails
-  # container logs, and forwards all three to Grafana Cloud. See
-  # ../config.alloy for the pipeline and required env vars.
-  alloy:
-    image: grafana/alloy:v1.17.1
-    container_name: jinbocho-alloy
+  netdata:
+    image: netdata/netdata:stable
+    container_name: jinbocho-netdata
+    hostname: jinbocho
+    pid: host
     profiles:
       - observability
-    env_file:
-      - ../envs/alloy.env   # copy from alloy.env.example and fill in values
-    volumes:
-      - ../config.alloy:/etc/alloy/config.alloy:ro
-      # Grants Alloy the same access as the host's `docker` group (root-
-      # equivalent) — see the security note at the top of config.alloy.
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - alloy_data:/var/lib/alloy/data
-    command:
-      - run
-      - --server.http.listen-addr=0.0.0.0:12345
-      - --storage.path=/var/lib/alloy/data
-      - /etc/alloy/config.alloy
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
     ports:
-      - "127.0.0.1:12345:12345"   # Alloy UI — debugging only, never public
-    networks:
-      - jinbocho-network
-
-  # Host metrics (ADR-012) — CPU/RAM/disk/load, scraped by Alloy above.
-  node-exporter:
-    image: prom/node-exporter:v1.8.2
-    container_name: jinbocho-node-exporter
-    profiles:
-      - observability
+      - "127.0.0.1:19999:19999"
     volumes:
+      - netdataconfig:/etc/netdata
+      - netdatalib:/var/lib/netdata
+      - netdatacache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--path.rootfs=/rootfs'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    networks:
-      - jinbocho-network
-
-  # Per-container CPU/memory (ADR-012). Linux-only cgroup introspection —
-  # expect this to fail health on macOS Docker Desktop; harmless since it's
-  # opt-in and the target (Hetzner VPS, ADR-009) is Linux.
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    container_name: jinbocho-cadvisor
-    profiles:
-      - observability
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    networks:
-      - jinbocho-network
-
-  # ADR-018: one exporter is enough now there is one database; scrapes as the
-  # superuser so per-schema connection/saturation stats stay visible across
-  # all three schemas (the exporter is read-only against pg_stat_* views).
-  postgres-exporter:
-    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
-    container_name: jinbocho-postgres-exporter
-    profiles:
-      - observability
-    environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/jinbocho?sslmode=disable"
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - /etc/os-release:/host/etc/os-release:ro
+      # Same trust level the old Alloy setup already had — container
+      # discovery/stats need it, no way around it for per-container metrics.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - jinbocho-network
 
@@ -167,5 +125,9 @@ networks:
 volumes:
   postgres_data:
     name: jinbocho_postgres_data
-  alloy_data:
-    name: jinbocho_alloy_data
+  netdataconfig:
+    name: jinbocho_netdataconfig
+  netdatalib:
+    name: jinbocho_netdatalib
+  netdatacache:
+    name: jinbocho_netdatacache

@@ -29,15 +29,18 @@ container/database (`postgres`, database `jinbocho`) shared by auth/catalog/ai, 
 isolated in its own Postgres SCHEMA + least-privilege ROLE, provisioned by
 `init-sql/00-schemas-and-roles.sh` (first-boot SQL) and one named volume.
 
-All three compose files also define an `alloy` service (Grafana Alloy — see
-`../config.alloy` and ADR-012) gated behind the `observability` Compose profile, off by
-default, alongside `node-exporter` (host CPU/RAM/disk), `cadvisor` (per-container CPU/RAM)
-and `postgres-exporter` (connection saturation) — all four
-scraped by Alloy and forwarded to Grafana Cloud alongside app metrics/traces/logs. Enable
-with `--profile observability` on any `docker compose` invocation. Requires `envs/alloy.env`
-(copy from `envs/alloy.env.example`) plus `OTEL_ENABLED=true` in each service's own env file.
-Dashboards live in `dashboards/` (`jinbocho-overview.json`, `jinbocho-logs-errors.json`,
-`jinbocho-infra.json`) — import manually via Grafana Cloud UI, not auto-provisioned.
+All three compose files also define a `netdata` service (single container — host +
+per-container metrics via `/proc`, `/sys` and the Docker socket, built-in dashboard on
+`:19999`) gated behind the `observability` Compose profile, off by default. Enable with
+`--profile observability` on any `docker compose` invocation. The dashboard binds to
+`127.0.0.1:19999` only — reach it via `ssh -L 19999:localhost:19999 <host>`, then
+`http://localhost:19999`, no auth/exposure config needed.
+
+Replaced the Grafana Alloy/node-exporter/cadvisor/postgres-exporter stack (ADR-012) on
+2026-08-01 — that setup shipped metrics/traces/logs to Grafana Cloud; this is
+local-only and much lighter for a single-VPS deployment. `dashboards/` (the old Grafana
+Cloud JSON exports) and ADR-012 itself are now historical — not deleted, but describe the
+superseded setup.
 
 ## Common commands
 
