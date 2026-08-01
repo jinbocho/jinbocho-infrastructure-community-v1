@@ -23,13 +23,16 @@ under a separate commercial license and is not part of this repo.
 
 Backend services never publish ports beyond `127.0.0.1` (or not at all in `.all.yml`) —
 the api-gateway (`:8000`, or Caddy `:80`/`:443` in `.all.yml`) is the only intended public
-entry point. One Postgres container per service (`postgres-auth`, `postgres-catalog`),
-each backed by `init-sql/<service>/` for first-boot SQL and a named volume.
+entry point. ADR-018 (dev/local scope only — production is still the pre-ADR-018
+three-database topology until the separate data-migration work lands): one Postgres
+container/database (`postgres`, database `jinbocho`) shared by auth/catalog/ai, each
+isolated in its own Postgres SCHEMA + least-privilege ROLE, provisioned by
+`init-sql/00-schemas-and-roles.sh` (first-boot SQL) and one named volume.
 
 All three compose files also define an `alloy` service (Grafana Alloy — see
 `../config.alloy` and ADR-012) gated behind the `observability` Compose profile, off by
 default, alongside `node-exporter` (host CPU/RAM/disk), `cadvisor` (per-container CPU/RAM)
-and `postgres-exporter-auth`/`postgres-exporter-catalog` (connection saturation) — all four
+and `postgres-exporter` (connection saturation) — all four
 scraped by Alloy and forwarded to Grafana Cloud alongside app metrics/traces/logs. Enable
 with `--profile observability` on any `docker compose` invocation. Requires `envs/alloy.env`
 (copy from `envs/alloy.env.example`) plus `OTEL_ENABLED=true` in each service's own env file.

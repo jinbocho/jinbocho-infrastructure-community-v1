@@ -17,35 +17,23 @@
 name: jinbocho
 
 services:
-  postgres-auth:
+  # ADR-018: one physical database ("jinbocho") shared by auth/catalog/ai,
+  # each isolated in its own Postgres SCHEMA + least-privilege ROLE (see
+  # ../init-sql/00-schemas-and-roles.sh). Replaces the former postgres-auth +
+  # postgres-catalog (+ postgres-ai, added by the Pro overlay) containers.
+  # Does NOT give cross-service transactions — see ADR-018 Context. NOTE:
+  # this file is dev/local scope per ADR-018 §4 — do not point this at a
+  # production VPS without the (not-yet-written) data migration runbook.
+  postgres:
     image: postgres:16-alpine
-    container_name: jinbocho-postgres-auth
+    container_name: jinbocho-postgres
     environment:
-      POSTGRES_DB: auth_db
+      POSTGRES_DB: jinbocho
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_auth_data:/var/lib/postgresql/data
-      - ../init-sql/auth:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - jinbocho-network
-
-  postgres-catalog:
-    image: postgres:16-alpine
-    container_name: jinbocho-postgres-catalog
-    environment:
-      POSTGRES_DB: catalog_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_catalog_data:/var/lib/postgresql/data
-      - ../init-sql/catalog:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+      - ../init-sql:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -61,7 +49,7 @@ services:
     env_file:
       - ../envs/auth-service.env
     depends_on:
-      postgres-auth:
+      postgres:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -73,7 +61,7 @@ services:
     env_file:
       - ../envs/catalog-service.env
     depends_on:
-      postgres-catalog:
+      postgres:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -185,31 +173,18 @@ services:
     networks:
       - jinbocho-network
 
-  # Postgres connection/saturation metrics (ADR-012 risk #1) — one exporter
-  # per database, reusing the same POSTGRES_PASSWORD as the DB containers.
-  postgres-exporter-auth:
+  # ADR-018: one exporter is enough now there is one database; scrapes as the
+  # superuser so per-schema connection/saturation stats stay visible across
+  # all three schemas (the exporter is read-only against pg_stat_* views).
+  postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
-    container_name: jinbocho-postgres-exporter-auth
+    container_name: jinbocho-postgres-exporter
     profiles:
       - observability
     environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres-auth:5432/auth_db?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/jinbocho?sslmode=disable"
     depends_on:
-      postgres-auth:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - jinbocho-network
-
-  postgres-exporter-catalog:
-    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
-    container_name: jinbocho-postgres-exporter-catalog
-    profiles:
-      - observability
-    environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres-catalog:5432/catalog_db?sslmode=disable"
-    depends_on:
-      postgres-catalog:
+      postgres:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -220,10 +195,8 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_auth_data:
-    name: jinbocho_postgres_auth_data
-  postgres_catalog_data:
-    name: jinbocho_postgres_catalog_data
+  postgres_data:
+    name: jinbocho_postgres_data
   caddy_data:
     name: jinbocho_caddy_data
   caddy_config:
