@@ -42,7 +42,7 @@ services:
       - jinbocho-network
 
   auth-service:
-    image: ghcr.io/jinbocho/jinbocho-auth-v1:${JINBOCHO_VERSION:-latest}
+    image: ghcr.io/jinbocho/jinbocho-auth-v1:${AUTH_SERVICE_VERSION:-latest}
     container_name: jinbocho-auth
     env_file:
       - ../envs/auth-service.env   # copy from auth-service.env.example and fill in values
@@ -56,7 +56,7 @@ services:
       - jinbocho-network
 
   catalog-service:
-    image: ghcr.io/jinbocho/jinbocho-catalog-v1:${JINBOCHO_VERSION:-latest}
+    image: ghcr.io/jinbocho/jinbocho-catalog-v1:${CATALOG_SERVICE_VERSION:-latest}
     container_name: jinbocho-catalog
     env_file:
       - ../envs/catalog-service.env   # copy from catalog-service.env.example and fill in values
@@ -70,7 +70,7 @@ services:
       - jinbocho-network
 
   api-gateway:
-    image: ghcr.io/jinbocho/jinbocho-api-gateway-v1:${JINBOCHO_VERSION:-latest}
+    image: ghcr.io/jinbocho/jinbocho-api-gateway-v1:${API_GATEWAY_VERSION:-latest}
     container_name: jinbocho-api-gateway
     env_file:
       - ../envs/api-gateway.env   # copy from api-gateway.env.example and fill in values

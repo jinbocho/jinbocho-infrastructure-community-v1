@@ -28,7 +28,7 @@ die()  { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
 get() { grep -E "^$2=" "$1" 2>/dev/null | head -1 | cut -d= -f2- || true; }
 
 DOMAIN="$(get .env DOMAIN)"
-JINBOCHO_VERSION="$(get .env JINBOCHO_VERSION)"
+PLATFORM_VERSION="$(get .env PLATFORM_VERSION)"
 LETSENCRYPT_EMAIL="$(sed -n 's/^[[:space:]]*email[[:space:]]*//p' Caddyfile 2>/dev/null | head -1 || true)"
 GOOGLE_BOOKS_KEY="$(get envs/catalog-service.env GOOGLE_BOOKS_API_KEY)"
 FRONTEND_BASE_URL="$(get envs/auth-service.env FRONTEND_BASE_URL)"
@@ -51,7 +51,7 @@ OUT="$HOME/jinbocho-reinstall.sh"
   [[ -n "$SMTP_PASSWORD" ]]     && echo "  --smtp-password '$SMTP_PASSWORD' \\"
   [[ -n "$EMAIL_FROM" ]]        && echo "  --email-from '$EMAIL_FROM' \\"
   [[ -n "$FRONTEND_BASE_URL" ]] && echo "  --frontend-base-url '$FRONTEND_BASE_URL' \\"
-  [[ -n "$JINBOCHO_VERSION" ]]  && echo "  --version '$JINBOCHO_VERSION' \\"
+  [[ -n "$PLATFORM_VERSION" ]]  && echo "  --version '$PLATFORM_VERSION' \\"
   echo "  --netdata-enabled true"
 } > "$OUT"
 

@@ -52,7 +52,7 @@ it. Variables not listed here already have a working default in the
 |---|---|---|---|---|
 | `POSTGRES_PASSWORD` | `change_me_local_dev` | Always | all compose files | Password for the local Postgres containers |
 | `JWT_SECRET_KEY` | — | No (manual use) | `docker-compose.all.yml` flows | Set automatically by `setup-vps-community.sh`; for manual setups set it in each service's `envs/*.env` instead (see below) |
-| `JINBOCHO_VERSION` | `latest` | No | `docker-compose.all.yml`, `*.community.yml` | GHCR image tag to pull |
+| `AUTH_SERVICE_VERSION` / `CATALOG_SERVICE_VERSION` / `API_GATEWAY_VERSION` | `latest` | No | `docker-compose.all.yml`, `*.community.yml` | GHCR image tag per service — resolved from a platform version via `--version` + `versions.lock.json`, see `jinbocho-docs` deployment guide |
 | `DOMAIN` | — | Only for VPS w/ TLS | `docker-compose.all.yml` | Public hostname, set by `setup-vps-community.sh` |
 | `VITE_API_BASE_URL` | — | Only for `all.yml` | `docker-compose.all.yml` (frontend build) | Public API base URL baked into the frontend build |
 

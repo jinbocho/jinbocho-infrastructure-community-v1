@@ -73,7 +73,11 @@ There is no build/lint/test suite in this repo itself — those live in each ser
 
 - Root `.env` (copy from `.env.example`) is read by Docker Compose for variable
   substitution (currently just `POSTGRES_PASSWORD` for local dev Postgres containers, and
-  `JINBOCHO_VERSION`/`VITE_API_BASE_URL` for `docker-compose.all.yml`).
+  `AUTH_SERVICE_VERSION`/`CATALOG_SERVICE_VERSION`/`API_GATEWAY_VERSION`/`VITE_API_BASE_URL`
+  for `docker-compose.all.yml`). Each service versions independently (release-please, per
+  repo), so there is no single shared image tag — `setup-vps-community.sh --version X.Y.Z`
+  resolves a platform version against `versions.lock.json` into the three per-service tags;
+  `--version` omitted (default `latest`) leaves every service floating on its own `:latest`.
 - `envs/<service>.env` (copied from `envs/<service>.env.example`, gitignored) is the
   per-service env file consumed via `env_file:` in every compose variant.
 - `JWT_SECRET_KEY` **must be identical** across `auth-service`, `catalog-service`, and

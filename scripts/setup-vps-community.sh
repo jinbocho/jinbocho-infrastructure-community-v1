@@ -27,7 +27,7 @@ NETDATA_ENABLED=""
 FRONTEND_BASE_URL=""
 FE_REPO="https://github.com/jinbocho/jinbocho-fe.git"
 FE_BRANCH="master"
-JINBOCHO_VERSION="latest"
+PLATFORM_VERSION="latest"
 ENABLE_FIREWALL="false"
 SKIP_DOCKER_INSTALL="false"
 NON_INTERACTIVE="false"
@@ -57,7 +57,11 @@ Options:
   --frontend-base-url <url>  Public frontend URL used in email links (default: derived from --domain/IP)
   --fe-repo <git-url>        Frontend repo to clone (default: jinbocho/jinbocho-fe)
   --fe-branch <branch>       Frontend branch to clone (default: main)
-  --version <tag>            GHCR image tag for backend services (default: latest)
+  --version <platform-ver>   Community platform version to install (default: latest = each
+                             service's :latest image). Resolved against versions.lock.json,
+                             which pins the exact per-service tag known to work together for
+                             that platform version — services version independently, so
+                             e.g. platform 1.0.1 might mean auth v1.0.1 + catalog v1.0.2.
   --enable-firewall          Configure ufw (22/80/443) and enable it
   --skip-docker-install      Don't attempt to install Docker
   --non-interactive          Never prompt; use flags/defaults only
@@ -79,7 +83,7 @@ while [[ $# -gt 0 ]]; do
     --frontend-base-url) FRONTEND_BASE_URL="$2"; shift 2 ;;
     --fe-repo) FE_REPO="$2"; shift 2 ;;
     --fe-branch) FE_BRANCH="$2"; shift 2 ;;
-    --version) JINBOCHO_VERSION="$2"; shift 2 ;;
+    --version) PLATFORM_VERSION="$2"; shift 2 ;;
     --enable-firewall) ENABLE_FIREWALL="true"; shift ;;
     --skip-docker-install) SKIP_DOCKER_INSTALL="true"; shift ;;
     --non-interactive) NON_INTERACTIVE="true"; shift ;;
@@ -89,6 +93,44 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -f "$SCRIPT_DIR/docker/docker-compose.all.yml" ]] || die "Run this from a checkout of jinbocho-infrastructure-v1 (docker-compose.all.yml not found)."
+
+# ── version resolution ──────────────────────────────────────────────────────
+# Each service repo's own SemVer (release-please) advances independently, so a
+# single shared tag can't express "auth v1.0.1 + catalog v1.0.2". A platform
+# version instead resolves against versions.lock.json, which pins the exact
+# per-service tags known to work together as of that platform release
+# (written by the jinbocho-release skill). --version latest (the default)
+# skips this entirely and lets every service float on its own :latest image.
+resolve_version() { # resolve_version <lock_file> <platform_version> <service_key>
+  python3 - "$1" "$2" "$3" <<'PY'
+import json, sys
+lock_file, platform_version, service_key = sys.argv[1:4]
+try:
+    with open(lock_file) as f:
+        data = json.load(f)
+    print(data.get("releases", {}).get(platform_version, {}).get(service_key, ""))
+except Exception:
+    print("")
+PY
+}
+
+if [[ "$PLATFORM_VERSION" == "latest" ]]; then
+  AUTH_SERVICE_VERSION="latest"
+  CATALOG_SERVICE_VERSION="latest"
+  API_GATEWAY_VERSION="latest"
+else
+  command -v python3 &>/dev/null || die "python3 richiesto per risolvere --version $PLATFORM_VERSION contro versions.lock.json (installalo o usa --version latest)."
+  LOCK_FILE="$SCRIPT_DIR/versions.lock.json"
+  [[ -f "$LOCK_FILE" ]] || die "versions.lock.json non trovato in questo checkout — impossibile risolvere --version $PLATFORM_VERSION."
+  AUTH_SERVICE_VERSION="$(resolve_version "$LOCK_FILE" "$PLATFORM_VERSION" auth-service)"
+  CATALOG_SERVICE_VERSION="$(resolve_version "$LOCK_FILE" "$PLATFORM_VERSION" catalog-service)"
+  API_GATEWAY_VERSION="$(resolve_version "$LOCK_FILE" "$PLATFORM_VERSION" api-gateway)"
+  if [[ -z "$AUTH_SERVICE_VERSION" || -z "$CATALOG_SERVICE_VERSION" || -z "$API_GATEWAY_VERSION" ]]; then
+    AVAILABLE="$(python3 -c "import json; print(', '.join(json.load(open('$LOCK_FILE')).get('releases', {}).keys()) or '(nessuna)')" 2>/dev/null || echo "(nessuna)")"
+    die "Versione piattaforma '$PLATFORM_VERSION' non trovata in versions.lock.json. Disponibili: $AVAILABLE"
+  fi
+  log "Piattaforma $PLATFORM_VERSION → auth $AUTH_SERVICE_VERSION, catalog $CATALOG_SERVICE_VERSION, gateway $API_GATEWAY_VERSION"
+fi
 
 prompt() {
   local var_name="$1" question="$2" default="${3:-}"
@@ -212,7 +254,12 @@ else
   JWT_SECRET="$EXISTING_JWT"
 fi
 set_kv .env JWT_SECRET_KEY "$JWT_SECRET"
-set_kv .env JINBOCHO_VERSION "$JINBOCHO_VERSION"
+set_kv .env AUTH_SERVICE_VERSION "$AUTH_SERVICE_VERSION"
+set_kv .env CATALOG_SERVICE_VERSION "$CATALOG_SERVICE_VERSION"
+set_kv .env API_GATEWAY_VERSION "$API_GATEWAY_VERSION"
+# Not read by Compose (the three resolved vars above are) — kept only so
+# build-reinstall-cmd.sh can reconstruct the original --version flag verbatim.
+set_kv .env PLATFORM_VERSION "$PLATFORM_VERSION"
 set_kv .env DOMAIN "${DOMAIN:-$SERVER_IP}"
 set_kv .env VITE_API_BASE_URL "${SCHEME}://${PUBLIC_HOST}/api"
 
