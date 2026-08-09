@@ -21,6 +21,15 @@ Community bundle covers: `auth-service`, `catalog-service`, `api-gateway`,
 
 ## [Unreleased]
 
-Nothing shipped yet under this scheme. The first entry is added by the
-`jinbocho-release` skill (`.claude/skills/jinbocho-release/SKILL.md` in the
-`workspace-jinbocho` workspace) the first time a release is cut.
+## [1.0.0] — 2026-08-09
+
+First Community platform release.
+
+Bundles:
+- auth-service v1.0.1
+- catalog-service v1.0.1
+- api-gateway v1.0.1
+- frontend v1.0.0
+
+### Highlights
+- **ci:** stop tag-triggered builds from also overwriting `:latest` (auth-service, catalog-service, api-gateway)

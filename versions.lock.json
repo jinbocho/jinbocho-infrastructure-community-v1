@@ -1,4 +1,11 @@
 {
   "$comment": "Per-service GHCR image tags known to work together, keyed by Community platform version. Written by the jinbocho-release skill alongside platform-version.json/CHANGELOG.md — do not edit by hand. setup-vps-community.sh resolves --version <platform-version> against this file to fill AUTH_SERVICE_VERSION/CATALOG_SERVICE_VERSION/API_GATEWAY_VERSION in .env, since each service's own SemVer (release-please, per-repo) advances independently and is not guaranteed to match the platform version number.",
-  "releases": {}
+  "releases": {
+    "1.0.0": {
+      "auth-service": "v1.0.1",
+      "catalog-service": "v1.0.1",
+      "api-gateway": "v1.0.1",
+      "frontend": "v1.0.0"
+    }
+  }
 }
