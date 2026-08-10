@@ -84,7 +84,7 @@ it. Variables not listed here already have a working default in the
 | `JWT_ALGORITHM` | `HS256` | No | — |
 | `INTERNAL_SERVICE_TOKEN` | — | **Yes** | Must match `auth-service`'s value — authenticates catalog→auth calls (loan reminder emails). Generate with `openssl rand -hex 32` |
 | `LOAN_REMINDER_LEAD_DAYS` | `1` | No | Days before `due_date` the loan-reminder email job fires |
-| `JINBOCHO_FEATURES` | `catalog,auth` | No | Must match `api-gateway`'s value. Add `community` for cross-library social (ADR-019/020), off by default — install-time only, see ADR-021 |
+| `JINBOCHO_FEATURES` | `catalog,auth` | No | Must match `api-gateway`'s value. Add `social` for cross-library social (ADR-019/020), off by default — install-time only, see ADR-021 |
 | `GOOGLE_BOOKS_API_KEY` | — | Recommended | Free key at [console.cloud.google.com](https://console.cloud.google.com/) (Books API). Without it the shared quota (1000 req/day) is exhausted quickly |
 
 ### `envs/api-gateway.env`
@@ -96,7 +96,7 @@ it. Variables not listed here already have a working default in the
 | `AUTH_SERVICE_URL` | `http://auth-service:8001` | No | Internal Docker network address — leave as-is for local dev |
 | `CATALOG_SERVICE_URL` | `http://catalog-service:8002` | No | Internal Docker network address — leave as-is for local dev |
 | `CORS_ORIGINS` | `["*"]` | No | Set to your frontend URL in production, e.g. `["https://your-fe.onrender.com"]` |
-| `JINBOCHO_FEATURES` | `catalog,auth` | No | Comma-separated enabled modules. Add `community` for cross-library social (ADR-019/020), off by default — install-time only, see ADR-021 |
+| `JINBOCHO_FEATURES` | `catalog,auth` | No | Comma-separated enabled modules. Add `social` for cross-library social (ADR-019/020), off by default — install-time only, see ADR-021 |
 
 ## 3. Developing from source (sibling checkouts)
 
