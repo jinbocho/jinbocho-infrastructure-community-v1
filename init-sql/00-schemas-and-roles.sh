@@ -40,6 +40,16 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-S
     CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 
+    -- auth-service's coordinates migration (ADR-020 amendment: real
+    -- geolocation) runs "CREATE EXTENSION IF NOT EXISTS" for these two —
+    -- same reasoning as unaccent/pg_trgm above: pre-created here as
+    -- superuser so auth_role never needs database-level CREATE to run that
+    -- migration itself. cube/earthdistance are the trusted Postgres contrib
+    -- extensions behind ll_to_earth()/earth_distance(), used for the
+    -- "nearby" radius query — no PostGIS, no external service.
+    CREATE EXTENSION IF NOT EXISTS cube WITH SCHEMA public;
+    CREATE EXTENSION IF NOT EXISTS earthdistance WITH SCHEMA public;
+
     DO \$\$
     BEGIN
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'auth_role') THEN
