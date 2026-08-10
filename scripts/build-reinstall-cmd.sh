@@ -9,7 +9,7 @@
 # since setup-vps-community.sh only applies its interactive defaults when a
 # flag is left empty AND not running --non-interactive.
 #
-# Usage (run from inside a checkout of jinbocho-infrastructure-v1, on the VPS):
+# Usage (run from inside a checkout of jinbocho-install-community-v1, on the VPS):
 #
 #   ./scripts/build-reinstall-cmd.sh
 #
@@ -23,7 +23,7 @@ cd "$SCRIPT_DIR"
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
 
-[[ -f "$SCRIPT_DIR/docker/docker-compose.all.yml" ]] || die "Run this from a checkout of jinbocho-infrastructure-v1 (docker-compose.all.yml not found)."
+[[ -f "$SCRIPT_DIR/docker/docker-compose.all.yml" ]] || die "Run this from a checkout of jinbocho-install-community-v1 (docker-compose.all.yml not found)."
 
 get() { grep -E "^$2=" "$1" 2>/dev/null | head -1 | cut -d= -f2- || true; }
 

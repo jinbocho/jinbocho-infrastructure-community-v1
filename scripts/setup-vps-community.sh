@@ -7,7 +7,7 @@
 # proxy) up in a single run — every image, including the frontend, is
 # pulled pre-built from GHCR, no source checkout of any service needed.
 #
-# Usage (run from inside a checkout of jinbocho-infrastructure-v1):
+# Usage (run from inside a checkout of jinbocho-install-community-v1):
 #
 #   ./scripts/setup-vps-community.sh --domain library.example.com --email you@example.com \
 #       --google-books-key AIza... [--enable-firewall]
@@ -86,7 +86,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -f "$SCRIPT_DIR/docker/docker-compose.all.yml" ]] || die "Run this from a checkout of jinbocho-infrastructure-v1 (docker-compose.all.yml not found)."
+[[ -f "$SCRIPT_DIR/docker/docker-compose.all.yml" ]] || die "Run this from a checkout of jinbocho-install-community-v1 (docker-compose.all.yml not found)."
 
 # ── version resolution ──────────────────────────────────────────────────────
 # Each service repo's own SemVer (release-please) advances independently, so a

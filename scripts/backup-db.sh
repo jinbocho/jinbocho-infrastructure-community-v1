@@ -19,7 +19,7 @@
 #
 # Cron — ogni notte alle 03:00, log in /var/log/jinbocho-backup.log:
 #
-#   0 3 * * * /opt/jinbocho-infrastructure-v1/scripts/backup-db.sh >> /var/log/jinbocho-backup.log 2>&1
+#   0 3 * * * /opt/jinbocho-install-community-v1/scripts/backup-db.sh >> /var/log/jinbocho-backup.log 2>&1
 #
 # Restore completo di un backup:
 #

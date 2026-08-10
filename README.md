@@ -1,4 +1,4 @@
-# jinbocho-infrastructure-v1 (Community Edition)
+# jinbocho-install-community-v1 (Community Edition)
 
 Docker Compose orchestration for the Jinbocho microservices (`auth`, `catalog`,
 `api-gateway`) and the VPS self-host installer for the **Community edition**.
@@ -6,7 +6,7 @@ No application code lives here — see the sibling `jinbocho-*` repos for that.
 
 > An optional AI module (book tagging, dedup suggestions) exists under a
 > separate commercial license. It is not part of this repo — contact
-> jinbochoapp@gmail.com for details.
+> info@jinbocho.eu for details.
 
 ## Which compose file do I need?
 
@@ -21,8 +21,8 @@ All commands below are run from the repo root.
 ## 1. Quick start — self-host with pre-built images
 
 ```bash
-git clone https://github.com/jinbocho/jinbocho-infrastructure-community-v1.git
-cd jinbocho-infrastructure-community-v1
+git clone https://github.com/jinbocho/jinbocho-install-community-v1.git
+cd jinbocho-install-community-v1
 
 cp .env.example .env
 cp envs/auth-service.env.example envs/auth-service.env
@@ -95,7 +95,7 @@ it. Variables not listed here already have a working default in the
 | `JWT_SECRET_KEY` | — | **Yes** | Must match `auth-service`'s value — generate with `openssl rand -hex 32` |
 | `AUTH_SERVICE_URL` | `http://auth-service:8001` | No | Internal Docker network address — leave as-is for local dev |
 | `CATALOG_SERVICE_URL` | `http://catalog-service:8002` | No | Internal Docker network address — leave as-is for local dev |
-| `CORS_ORIGINS` | `["*"]` | No | Set to your frontend URL in production, e.g. `["https://your-fe.onrender.com"]` |
+| `CORS_ORIGINS` | `["*"]` | No | Set to your frontend URL in production, e.g. `["https://library.example.com"]` |
 | `JINBOCHO_FEATURES` | `catalog,auth` | No | Comma-separated enabled modules. Add `social` for cross-library social (ADR-019/020), off by default — install-time only, see ADR-021 |
 
 ## 3. Developing from source (sibling checkouts)
@@ -127,11 +127,11 @@ unless you delete them first.
 ### Fresh VPS, nothing checked out yet
 
 One command, no `git clone` step — `scripts/install.sh` fetches this repo
-(cloning it into `./jinbocho-infrastructure-community-v1`) and hands off
+(cloning it into `./jinbocho-install-community-v1`) and hands off
 every flag to `scripts/setup-vps-community.sh`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jinbocho/jinbocho-infrastructure-community-v1/main/scripts/install.sh \
+curl -fsSL https://raw.githubusercontent.com/jinbocho/jinbocho-install-community-v1/main/scripts/install.sh \
   | sudo bash -s -- \
   --domain <YOUR_DOMAIN> \
   --email <LETSENCRYPT_EMAIL> \
@@ -165,8 +165,8 @@ you'd rather not blind-pipe to a root shell.
 ### Already have a checkout (or want to inspect the script first)
 
 ```bash
-git clone https://github.com/jinbocho/jinbocho-infrastructure-community-v1.git
-cd jinbocho-infrastructure-community-v1
+git clone https://github.com/jinbocho/jinbocho-install-community-v1.git
+cd jinbocho-install-community-v1
 sudo ./scripts/setup-vps-community.sh --domain library.example.com --email you@example.com --google-books-key AIza...
 ```
 

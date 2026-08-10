@@ -54,3 +54,6 @@ Thumbs.db
 *.der
 secrets/
 .secrets/
+
+# Local-only Claude Code guidance, never pushed
+CLAUDE.md
