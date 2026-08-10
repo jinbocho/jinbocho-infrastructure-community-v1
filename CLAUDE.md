@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-This repo (`jinbocho-infrastructure-v1`) holds **orchestration only** — no application
-code. It assembles the sibling Community-edition service repos (`../jinbocho-auth-v1`,
-`../jinbocho-catalog-v1`, `../jinbocho-api-gateway-v1`, `../jinbocho-fe`) via Docker
-Compose, plus VPS install scripts, a Render Blueprint, and DB backup tooling. All four
-repos are expected to be checked out as siblings under the same parent directory.
+This repo (`jinbocho-infrastructure-community-v1`) holds **orchestration only** — no
+application code. It assembles the sibling Community-edition service repos
+(`../jinbocho-auth-v1`, `../jinbocho-catalog-v1`, `../jinbocho-api-gateway-v1`,
+`../jinbocho-fe`) via Docker Compose, plus the VPS install scripts. All four repos are
+expected to be checked out as siblings under the same parent directory when developing
+from source (`docker-compose.community.local.yml`) — the GHCR-backed compose files and
+the VPS installer need no source checkout of any of them.
 
 This is the **Community edition** — free, no AI module. An optional AI module exists
 under a separate commercial license and is not part of this repo.
@@ -56,8 +58,12 @@ docker compose -f docker-compose.community.local.yml down
 # Smoke-test a running stack through the gateway (registers a family, exercises most endpoints):
 ./scripts/validate-api.sh
 
-# One-shot install on a fresh VPS (drives docker-compose.all.yml):
+# One-shot install on a fresh VPS (drives docker-compose.all.yml), from an existing checkout:
 sudo ./scripts/setup-vps-community.sh --domain library.example.com --email you@example.com --google-books-key AIza...
+
+# Same, but with no checkout yet — scripts/install.sh clones this repo first, then execs the line above:
+curl -fsSL https://raw.githubusercontent.com/jinbocho/jinbocho-infrastructure-community-v1/main/scripts/install.sh \
+  | sudo bash -s -- --domain library.example.com --email you@example.com --google-books-key AIza...
 
 # Manual deploy of the all-in-one stack (what the setup script generates):
 docker compose -f docker-compose.all.yml --env-file .env up -d --build
@@ -95,14 +101,13 @@ There is no build/lint/test suite in this repo itself — those live in each ser
    first.
 2. **GHCR-only self-host** — `docker-compose.community.yml`, no frontend container (BYO
    frontend hosting), API-only.
-3. **Render** (managed cloud) — `render.yaml` Blueprint.
-   `.github/workflows/wake-render.yml` pings all Render service `/health` endpoints
-   (free-tier services sleep) and the frontend, polling up to 90s each.
-4. **Render DB backups** — `.github/workflows/db-backup.yml` runs nightly at 02:00 UTC,
-   `pg_dump`s the Neon-hosted `auth_db`/`catalog_db` (requires `NEON_AUTH_DB_URL` /
-   `NEON_CATALOG_DB_URL` repo secrets — use the raw `postgresql://` URL, not the
-   asyncpg-transformed one the services use) and uploads the gzipped dumps as 90-day
-   workflow artifacts.
+
+The `jinbocho.onrender.com` public demo (linked from marketing/docs) still runs on
+Render, deployed from an earlier version of this repo, but its Blueprint
+(`render.yaml`), wake-up ping (`wake-render.yml`) and Neon DB backup (`db-backup.yml`)
+were removed here 2026-08-10 — this repo now only carries what's needed to install
+Jinbocho yourself. If the demo needs redeploying or its automation needs to exist
+somewhere, recreate it in a separate repo; do not re-add it here.
 
 ## Working across the sibling repos
 

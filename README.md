@@ -1,7 +1,7 @@
 # jinbocho-infrastructure-v1 (Community Edition)
 
 Docker Compose orchestration for the Jinbocho microservices (`auth`, `catalog`,
-`api-gateway`) and the VPS/Render deploy tooling for the **Community edition**.
+`api-gateway`) and the VPS self-host installer for the **Community edition**.
 No application code lives here — see the sibling `jinbocho-*` repos for that.
 
 > An optional AI module (book tagging, dedup suggestions) exists under a
@@ -21,8 +21,8 @@ All commands below are run from the repo root.
 ## 1. Quick start — self-host with pre-built images
 
 ```bash
-git clone https://github.com/jinbocho/jinbocho-infrastructure-v1.git
-cd jinbocho-infrastructure-v1
+git clone https://github.com/jinbocho/jinbocho-infrastructure-community-v1.git
+cd jinbocho-infrastructure-community-v1
 
 cp .env.example .env
 cp envs/auth-service.env.example envs/auth-service.env
@@ -121,26 +121,18 @@ Or run backend + frontend (`npm run dev`) together:
 Drives `docker/docker-compose.all.yml` end to end: installs Docker if needed,
 generates secrets, writes `.env` and `envs/*.env`, and brings the stack up
 behind Caddy (automatic Let's Encrypt TLS when `--domain` is a real hostname).
+Re-running is safe: existing secrets, env files and the Caddyfile are kept
+unless you delete them first.
+
+### Fresh VPS, nothing checked out yet
+
+One command, no `git clone` step — `scripts/install.sh` fetches this repo
+(cloning it into `./jinbocho-infrastructure-community-v1`) and hands off
+every flag to `scripts/setup-vps-community.sh`:
 
 ```bash
-sudo ./scripts/setup-vps-community.sh \
-  --domain library.example.com \
-  --email you@example.com \
-  --google-books-key AIza...
-```
-
-Run the script with `--help` to see all flags (SMTP setup, frontend URL
-override, firewall, etc).
-
-### Full one-shot command (fresh VPS, nothing checked out yet)
-
-Clones this repo and runs the installer with every optional flag spelled
-out — replace the placeholders, drop the flags you don't need:
-
-```bash
-git clone https://github.com/jinbocho/jinbocho-infrastructure-v1.git && \
-cd jinbocho-infrastructure-v1 && \
-sudo ./scripts/setup-vps-community.sh \
+curl -fsSL https://raw.githubusercontent.com/jinbocho/jinbocho-infrastructure-community-v1/main/scripts/install.sh \
+  | sudo bash -s -- \
   --domain <YOUR_DOMAIN> \
   --email <LETSENCRYPT_EMAIL> \
   --google-books-key <GOOGLE_BOOKS_API_KEY> \
@@ -165,7 +157,20 @@ sudo ./scripts/setup-vps-community.sh \
 
 `--enable-firewall` opens 22/80/443 via `ufw`; drop it if you manage the
 firewall elsewhere. `--non-interactive` skips all prompts and relies only on
-the flags passed in.
+the flags passed in. Piping into `sudo bash` runs code from this repo with
+root privileges — inspect [`scripts/install.sh`](scripts/install.sh) and
+[`scripts/setup-vps-community.sh`](scripts/setup-vps-community.sh) first if
+you'd rather not blind-pipe to a root shell.
+
+### Already have a checkout (or want to inspect the script first)
+
+```bash
+git clone https://github.com/jinbocho/jinbocho-infrastructure-community-v1.git
+cd jinbocho-infrastructure-community-v1
+sudo ./scripts/setup-vps-community.sh --domain library.example.com --email you@example.com --google-books-key AIza...
+```
+
+Run either script with `--help` to see all flags.
 
 ## 5. Smoke-test a running stack
 
@@ -224,4 +229,4 @@ breakdowns but keep host-level metrics.
 
 ---
 
-License: see [LICENSE](LICENSE). Contributing: see [CONTRIBUTING.md](CONTRIBUTING.md).
+License: see [LICENSE](LICENSE).
