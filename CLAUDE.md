@@ -19,7 +19,7 @@ under a separate commercial license and is not part of this repo.
 |------|--------|----------|
 | `docker-compose.community.yml` | GHCR (pre-built) | Self-host, no source checkout |
 | `docker-compose.community.local.yml` | Built from `../jinbocho-*-v1` | Local dev, contributors — **this is what `scripts/dev.sh` uses** |
-| `docker-compose.all.yml` | GHCR backend + locally-built frontend | Single-server VPS deploy, includes Caddy reverse proxy + TLS |
+| `docker-compose.all.yml` | GHCR (backend + frontend, all pre-built) | Single-server VPS deploy, includes Caddy reverse proxy + TLS |
 
 Backend services never publish ports beyond `127.0.0.1` (or not at all in `.all.yml`) —
 the api-gateway (`:8000`, or Caddy `:80`/`:443` in `.all.yml`) is the only intended public
@@ -73,11 +73,15 @@ There is no build/lint/test suite in this repo itself — those live in each ser
 
 - Root `.env` (copy from `.env.example`) is read by Docker Compose for variable
   substitution (currently just `POSTGRES_PASSWORD` for local dev Postgres containers, and
-  `AUTH_SERVICE_VERSION`/`CATALOG_SERVICE_VERSION`/`API_GATEWAY_VERSION`/`VITE_API_BASE_URL`
-  for `docker-compose.all.yml`). Each service versions independently (release-please, per
-  repo), so there is no single shared image tag — `setup-vps-community.sh --version X.Y.Z`
-  resolves a platform version against `versions.lock.json` into the three per-service tags;
-  `--version` omitted (default `latest`) leaves every service floating on its own `:latest`.
+  `AUTH_SERVICE_VERSION`/`CATALOG_SERVICE_VERSION`/`API_GATEWAY_VERSION`/`FRONTEND_VERSION`/
+  `API_BASE_URL` for `docker-compose.all.yml`). Each service versions independently
+  (release-please, per repo), so there is no single shared image tag —
+  `setup-vps-community.sh --version X.Y.Z` resolves a platform version against
+  `versions.lock.json` into the four per-service tags; `--version` omitted (default
+  `latest`) leaves every service floating on its own `:latest`. `API_BASE_URL` is
+  injected into the frontend container at startup, not baked in at build time — the
+  `jinbocho-fe` image is generic/domain-agnostic and pulled pre-built from GHCR like
+  every other service, no source checkout needed for any of them.
 - `envs/<service>.env` (copied from `envs/<service>.env.example`, gitignored) is the
   per-service env file consumed via `env_file:` in every compose variant.
 - `JWT_SECRET_KEY` **must be identical** across `auth-service`, `catalog-service`, and

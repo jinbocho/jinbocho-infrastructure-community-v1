@@ -81,16 +81,17 @@ services:
     # No host port published — only reachable through the Caddy reverse proxy.
 
   frontend:
-    build:
-      context: ../../jinbocho-fe
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    image: ghcr.io/jinbocho/jinbocho-fe:${FRONTEND_VERSION:-latest}
+    environment:
+      API_BASE_URL: ${API_BASE_URL}
     container_name: jinbocho-frontend
     restart: unless-stopped
     networks:
       - jinbocho-network
     # No host port published — only reachable through the Caddy reverse proxy.
+    # No source checkout needed: the image is generic/domain-agnostic,
+    # API_BASE_URL is injected at container startup (see jinbocho-fe's
+    # Dockerfile/docker-entrypoint.d/env.sh), not baked in at build time.
 
   caddy:
     image: caddy:2-alpine

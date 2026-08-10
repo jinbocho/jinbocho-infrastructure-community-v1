@@ -2,10 +2,10 @@
 #
 # Jinbocho — one-shot self-host installer for a fresh VPS (Hetzner, Scaleway,
 # DigitalOcean, ... any Debian/Ubuntu server with a public IP). Installs
-# Docker if needed, fetches the frontend source, generates secrets, writes
-# every config file, builds the missing frontend image and brings the full
-# stack (DBs + 3 backends + gateway + frontend + HTTPS reverse proxy) up in
-# a single run.
+# Docker if needed, generates secrets, writes every config file, and brings
+# the full stack (DBs + 3 backends + gateway + frontend + HTTPS reverse
+# proxy) up in a single run — every image, including the frontend, is
+# pulled pre-built from GHCR, no source checkout of any service needed.
 #
 # Usage (run from inside a checkout of jinbocho-infrastructure-v1):
 #
@@ -25,8 +25,6 @@ SMTP_PASSWORD=""
 EMAIL_FROM=""
 NETDATA_ENABLED=""
 FRONTEND_BASE_URL=""
-FE_REPO="https://github.com/jinbocho/jinbocho-fe.git"
-FE_BRANCH="master"
 PLATFORM_VERSION="latest"
 ENABLE_FIREWALL="false"
 SKIP_DOCKER_INSTALL="false"
@@ -55,8 +53,6 @@ Options:
   --netdata-enabled true|false   Enable the local Netdata dashboard (host + per-container
                                   metrics, :19999, localhost-only) (default: asked interactively)
   --frontend-base-url <url>  Public frontend URL used in email links (default: derived from --domain/IP)
-  --fe-repo <git-url>        Frontend repo to clone (default: jinbocho/jinbocho-fe)
-  --fe-branch <branch>       Frontend branch to clone (default: main)
   --version <platform-ver>   Community platform version to install (default: latest = each
                              service's :latest image). Resolved against versions.lock.json,
                              which pins the exact per-service tag known to work together for
@@ -81,8 +77,6 @@ while [[ $# -gt 0 ]]; do
     --email-from) EMAIL_FROM="$2"; shift 2 ;;
     --netdata-enabled) NETDATA_ENABLED="$2"; shift 2 ;;
     --frontend-base-url) FRONTEND_BASE_URL="$2"; shift 2 ;;
-    --fe-repo) FE_REPO="$2"; shift 2 ;;
-    --fe-branch) FE_BRANCH="$2"; shift 2 ;;
     --version) PLATFORM_VERSION="$2"; shift 2 ;;
     --enable-firewall) ENABLE_FIREWALL="true"; shift ;;
     --skip-docker-install) SKIP_DOCKER_INSTALL="true"; shift ;;
@@ -118,6 +112,7 @@ if [[ "$PLATFORM_VERSION" == "latest" ]]; then
   AUTH_SERVICE_VERSION="latest"
   CATALOG_SERVICE_VERSION="latest"
   API_GATEWAY_VERSION="latest"
+  FRONTEND_VERSION="latest"
 else
   command -v python3 &>/dev/null || die "python3 richiesto per risolvere --version $PLATFORM_VERSION contro versions.lock.json (installalo o usa --version latest)."
   LOCK_FILE="$SCRIPT_DIR/versions.lock.json"
@@ -125,11 +120,12 @@ else
   AUTH_SERVICE_VERSION="$(resolve_version "$LOCK_FILE" "$PLATFORM_VERSION" auth-service)"
   CATALOG_SERVICE_VERSION="$(resolve_version "$LOCK_FILE" "$PLATFORM_VERSION" catalog-service)"
   API_GATEWAY_VERSION="$(resolve_version "$LOCK_FILE" "$PLATFORM_VERSION" api-gateway)"
-  if [[ -z "$AUTH_SERVICE_VERSION" || -z "$CATALOG_SERVICE_VERSION" || -z "$API_GATEWAY_VERSION" ]]; then
+  FRONTEND_VERSION="$(resolve_version "$LOCK_FILE" "$PLATFORM_VERSION" frontend)"
+  if [[ -z "$AUTH_SERVICE_VERSION" || -z "$CATALOG_SERVICE_VERSION" || -z "$API_GATEWAY_VERSION" || -z "$FRONTEND_VERSION" ]]; then
     AVAILABLE="$(python3 -c "import json; print(', '.join(json.load(open('$LOCK_FILE')).get('releases', {}).keys()) or '(nessuna)')" 2>/dev/null || echo "(nessuna)")"
     die "Versione piattaforma '$PLATFORM_VERSION' non trovata in versions.lock.json. Disponibili: $AVAILABLE"
   fi
-  log "Piattaforma $PLATFORM_VERSION → auth $AUTH_SERVICE_VERSION, catalog $CATALOG_SERVICE_VERSION, gateway $API_GATEWAY_VERSION"
+  log "Piattaforma $PLATFORM_VERSION → auth $AUTH_SERVICE_VERSION, catalog $CATALOG_SERVICE_VERSION, gateway $API_GATEWAY_VERSION, frontend $FRONTEND_VERSION"
 fi
 
 prompt() {
@@ -207,27 +203,11 @@ else
   log "Salto la configurazione del firewall (passa --enable-firewall per attivarla)."
 fi
 
-# ── 3. Frontend source ──────────────────────────────────────────────────────
-FE_DIR="$SCRIPT_DIR/../jinbocho-fe"
-if [[ -d "$FE_DIR/.git" ]]; then
-  log "jinbocho-fe già presente: aggiorno (git fetch + checkout $FE_BRANCH)"
-  git -C "$FE_DIR" fetch origin "$FE_BRANCH"
-  git -C "$FE_DIR" checkout "$FE_BRANCH"
-  git -C "$FE_DIR" pull --ff-only origin "$FE_BRANCH"
-else
-  log "Clono il frontend ($FE_REPO@$FE_BRANCH) in $FE_DIR"
-  git clone --branch "$FE_BRANCH" "$FE_REPO" "$FE_DIR"
-fi
-
-if [[ ! -f "$FE_DIR/Dockerfile" ]]; then
-  log "jinbocho-fe non ha un Dockerfile proprio: copio il template (nginx + build Vite)"
-  cp "$SCRIPT_DIR/docker/frontend/Dockerfile" "$FE_DIR/Dockerfile"
-  cp "$SCRIPT_DIR/docker/frontend/nginx.conf" "$FE_DIR/nginx.conf"
-else
-  log "jinbocho-fe ha già un Dockerfile: lo lascio invariato."
-fi
-
-# ── 4. Secrets & env files ──────────────────────────────────────────────────
+# ── 3. Secrets & env files ──────────────────────────────────────────────────
+# No frontend source checkout: docker-compose.all.yml pulls a pre-built,
+# domain-agnostic ghcr.io/jinbocho/jinbocho-fe image (API_BASE_URL is
+# injected at container startup, not baked in at build time — see that
+# repo's Dockerfile) instead of `git clone`-ing and building from source.
 set_kv() { # set_kv <file> <key> <value>
   local file="$1" key="$2" value="$3"
   touch "$file"
@@ -257,11 +237,12 @@ set_kv .env JWT_SECRET_KEY "$JWT_SECRET"
 set_kv .env AUTH_SERVICE_VERSION "$AUTH_SERVICE_VERSION"
 set_kv .env CATALOG_SERVICE_VERSION "$CATALOG_SERVICE_VERSION"
 set_kv .env API_GATEWAY_VERSION "$API_GATEWAY_VERSION"
+set_kv .env FRONTEND_VERSION "$FRONTEND_VERSION"
 # Not read by Compose (the three resolved vars above are) — kept only so
 # build-reinstall-cmd.sh can reconstruct the original --version flag verbatim.
 set_kv .env PLATFORM_VERSION "$PLATFORM_VERSION"
 set_kv .env DOMAIN "${DOMAIN:-$SERVER_IP}"
-set_kv .env VITE_API_BASE_URL "${SCHEME}://${PUBLIC_HOST}/api"
+set_kv .env API_BASE_URL "${SCHEME}://${PUBLIC_HOST}/api"
 
 mkdir -p envs
 copy_env() { [[ -f "envs/$1.env" ]] || cp "envs/$1.env.example" "envs/$1.env"; }
@@ -310,7 +291,7 @@ else
   warn "Nessuna Google Books API key fornita: imposta GOOGLE_BOOKS_API_KEY in envs/catalog-service.env in seguito."
 fi
 
-# ── 5. Caddyfile (reverse proxy + HTTPS) ────────────────────────────────────
+# ── 4. Caddyfile (reverse proxy + HTTPS) ────────────────────────────────────
 if [[ -f Caddyfile ]]; then
   log "Caddyfile esistente trovato: lo lascio invariato (rimuovilo manualmente per rigenerarlo)."
 else
@@ -338,7 +319,7 @@ CADDY_BODY
   } > Caddyfile
 fi
 
-# ── 6. Build & start ─────────────────────────────────────────────────────────
+# ── 5. Build & start ─────────────────────────────────────────────────────────
 # The compose file uses fixed container_name values, but older checkouts (or
 # installs that predate pinning the Compose project name to "jinbocho") may
 # have created containers with the same names under a different project.
@@ -358,12 +339,11 @@ done
 COMPOSE_ARGS=(-f docker/docker-compose.all.yml --env-file .env)
 [[ "$NETDATA_ENABLED" == "true" ]] && COMPOSE_ARGS+=(--profile observability)
 
-log "Pull immagini backend (GHCR) e build frontend da sorgente..."
+log "Pull immagini (GHCR, incluso frontend)..."
 docker compose "${COMPOSE_ARGS[@]}" pull --ignore-pull-failures
-docker compose "${COMPOSE_ARGS[@]}" build frontend
 docker compose "${COMPOSE_ARGS[@]}" up -d
 
-# ── 7. Smoke test ─────────────────────────────────────────────────────────
+# ── 6. Smoke test ─────────────────────────────────────────────────────────
 log "Attendo che il gateway risponda..."
 HEALTH_URL="${SCHEME}://${PUBLIC_HOST}/api/health"
 ok="false"

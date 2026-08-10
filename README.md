@@ -14,7 +14,7 @@ No application code lives here — see the sibling `jinbocho-*` repos for that.
 |---|---|---|
 | `docker/docker-compose.community.yml` | GHCR (pre-built) | Self-host, no source checkout |
 | `docker/docker-compose.community.local.yml` | Built from `../jinbocho-*-v1` | Local dev from source |
-| `docker/docker-compose.all.yml` | GHCR backend + locally-built frontend | Single-server VPS deploy, includes Caddy + TLS |
+| `docker/docker-compose.all.yml` | GHCR (backend + frontend, all pre-built) | Single-server VPS deploy, includes Caddy + TLS |
 
 All commands below are run from the repo root.
 
@@ -52,9 +52,9 @@ it. Variables not listed here already have a working default in the
 |---|---|---|---|---|
 | `POSTGRES_PASSWORD` | `change_me_local_dev` | Always | all compose files | Password for the local Postgres containers |
 | `JWT_SECRET_KEY` | — | No (manual use) | `docker-compose.all.yml` flows | Set automatically by `setup-vps-community.sh`; for manual setups set it in each service's `envs/*.env` instead (see below) |
-| `AUTH_SERVICE_VERSION` / `CATALOG_SERVICE_VERSION` / `API_GATEWAY_VERSION` | `latest` | No | `docker-compose.all.yml`, `*.community.yml` | GHCR image tag per service — resolved from a platform version via `--version` + `versions.lock.json`, see `jinbocho-docs` deployment guide |
+| `AUTH_SERVICE_VERSION` / `CATALOG_SERVICE_VERSION` / `API_GATEWAY_VERSION` / `FRONTEND_VERSION` | `latest` | No | `docker-compose.all.yml`, `*.community.yml` | GHCR image tag per service — resolved from a platform version via `--version` + `versions.lock.json`, see `jinbocho-docs` deployment guide |
 | `DOMAIN` | — | Only for VPS w/ TLS | `docker-compose.all.yml` | Public hostname, set by `setup-vps-community.sh` |
-| `VITE_API_BASE_URL` | — | Only for `all.yml` | `docker-compose.all.yml` (frontend build) | Public API base URL baked into the frontend build |
+| `API_BASE_URL` | — | Only for `all.yml` | `docker-compose.all.yml` (frontend container) | Public API base URL, injected into the frontend container at startup (not baked in at build time — the image is generic/domain-agnostic, pulled pre-built from GHCR) |
 
 ### `envs/auth-service.env`
 
