@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in the installer or Docker Compose setup is broken
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you expected instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: compose-file
+    attributes:
+      label: Which compose file / script?
+      options:
+        - docker-compose.community.yml
+        - docker-compose.community.local.yml
+        - docker-compose.all.yml
+        - scripts/setup-vps-community.sh
+        - scripts/install.sh
+        - scripts/backup-db.sh
+        - scripts/dev.sh
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Repo version
+      description: Output of `git describe --tags` or the release tag you're on.
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Output of `docker compose logs`, or the script's output. Redact secrets first.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS/distro, Docker version, self-host VPS or local dev.
+    validations:
+      required: true

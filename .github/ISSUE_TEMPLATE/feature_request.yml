@@ -1,0 +1,23 @@
+name: Feature request
+description: Propose a change to the installer, compose files, or VPS scripts
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's missing or awkward today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: A new flag, a new compose profile, a new deployment target, etc.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        Note: this repo is orchestration only (Docker Compose, install/backup
+        scripts). Application features belong in the closed-source service
+        repos — email info@jinbocho.eu for those instead.

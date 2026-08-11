@@ -1,5 +1,9 @@
 # jinbocho-install-community-v1 (Community Edition)
 
+[![Release](https://img.shields.io/github/v/release/jinbocho/jinbocho-install-community-v1)](https://github.com/jinbocho/jinbocho-install-community-v1/releases)
+[![License](https://img.shields.io/badge/license-Commercial-lightgrey)](LICENSE)
+[![Website](https://img.shields.io/badge/website-jinbocho.github.io-blue)](https://jinbocho.github.io)
+
 Docker Compose orchestration for the Jinbocho microservices (`auth`, `catalog`,
 `api-gateway`) and the VPS self-host installer for the **Community edition**.
 No application code lives here — see the sibling `jinbocho-*` repos for that.
@@ -7,6 +11,17 @@ No application code lives here — see the sibling `jinbocho-*` repos for that.
 > An optional AI module (book tagging, dedup suggestions) exists under a
 > separate commercial license. It is not part of this repo — contact
 > info@jinbocho.eu for details.
+
+## Contents
+
+1. [Which compose file do I need?](#which-compose-file-do-i-need)
+2. [Quick start — self-host with pre-built images](#1-quick-start--self-host-with-pre-built-images)
+3. [Environment variables](#2-environment-variables)
+4. [Developing from source](#3-developing-from-source-sibling-checkouts)
+5. [One-shot VPS install](#4-one-shot-vps-install)
+6. [Smoke-test a running stack](#5-smoke-test-a-running-stack)
+7. [Observability (Netdata)](#6-observability-netdata)
+8. [Contributing](#contributing)
 
 ## Which compose file do I need?
 
@@ -226,6 +241,13 @@ single-operator VPS with the dashboard bound to localhost only; if it isn't
 acceptable for yours, drop the `docker.sock` mount and the `cap_add`/
 `security_opt` lines from the `netdata` service — you lose per-container
 breakdowns but keep host-level metrics.
+
+---
+
+## Contributing
+
+Closed-source, no code PRs — bug reports and feature requests are welcome via
+issues. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

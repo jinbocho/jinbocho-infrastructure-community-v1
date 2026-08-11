@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: mailto:info@jinbocho.eu
+    about: Do not open a public issue for security reports — email us instead.
+  - name: Application bugs (auth/catalog/gateway/AI/frontend)
+    url: mailto:info@jinbocho.eu
+    about: Those repos are closed-source; report issues by email.
+  - name: Documentation
+    url: https://jinbocho.github.io/manuals/
+    about: User and developer manuals.
