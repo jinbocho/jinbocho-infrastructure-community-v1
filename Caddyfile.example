@@ -1,0 +1,13 @@
+{
+    email you@example.com
+}
+
+library.example.com {
+    encode gzip
+    handle_path /api/* {
+        reverse_proxy api-gateway:8000
+    }
+    handle {
+        reverse_proxy frontend:80
+    }
+}
