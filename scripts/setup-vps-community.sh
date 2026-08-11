@@ -270,7 +270,7 @@ gen_or_reuse() { # gen_or_reuse <file> <key>
 INTERNAL_SERVICE_TOKEN="$(gen_or_reuse envs/auth-service.env INTERNAL_SERVICE_TOKEN)"
 set_kv envs/auth-service.env INTERNAL_SERVICE_TOKEN "$INTERNAL_SERVICE_TOKEN"
 set_kv envs/catalog-service.env INTERNAL_SERVICE_TOKEN "$INTERNAL_SERVICE_TOKEN"
-set_kv envs/catalog-service.env JINBOCHO_FEATURES "catalog,auth"
+set_kv envs/catalog-service.env JINBOCHO_FEATURES "catalog,auth,kids"
 
 set_kv envs/api-gateway.env CORS_ORIGINS "[\"${SCHEME}://${PUBLIC_HOST}\"]"
 set_kv envs/api-gateway.env JWT_ISSUER "jinbocho-auth"
